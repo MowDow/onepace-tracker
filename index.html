@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>One Pace Tracker – Wano</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c232c; --line:#262f3a;
+    --text:#e8edf2; --muted:#8b97a5; --accent:#f0953a; --accent2:#ffb46b;
+    --ok:#3fc98a; --cyan:#4fd6e0; --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:Archivo,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .wrap{max-width:900px;margin:0 auto;padding:20px 16px 60px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+  .brand{font-weight:800;letter-spacing:.02em;font-size:15px;text-transform:uppercase;color:var(--muted)}
+  .brand b{color:var(--accent)}
+  .pill{font-size:12px;padding:5px 10px;border-radius:99px;background:var(--panel2);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
+  .pill.ok{color:var(--ok);border-color:#2b5a45}
+  .pill.warn{color:#ffcf70;border-color:#6b5520}
+  .mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+
+  /* hero */
+  .hero{position:relative;overflow:hidden;background:linear-gradient(135deg,#1d2530 0%,#141a21 60%);border:1px solid var(--line);border-radius:22px;padding:22px 22px 20px}
+  .hero::after{content:"";position:absolute;right:-60px;top:-60px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(240,149,58,.22),transparent 70%);pointer-events:none}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:600}
+  .heroMain{display:flex;gap:20px;align-items:flex-end;margin:10px 0 14px}
+  .bigNum{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:84px;line-height:.85;color:var(--text)}
+  .heroTitle{font-size:26px;font-weight:800;line-height:1.15;margin:0 0 6px}
+  .heroArc{color:var(--muted);font-size:14px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+  .chip{font-size:13px;background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:10px;padding:6px 10px;color:#c9d3dd}
+  .chip b{color:var(--text);font-weight:600}
+  .chip.filler{color:#ffcf70;border-color:#6b5520}
+  .actions{display:flex;flex-wrap:wrap;gap:10px;position:relative;z-index:1}
+  .btn{appearance:none;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:600 15px Archivo,sans-serif;border-radius:12px;padding:12px 18px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px;min-height:46px}
+  .btn:hover{border-color:#3a4654}
+  .btn.play{background:var(--accent);border-color:var(--accent);color:#1a1006}
+  .btn.play:hover{background:var(--accent2)}
+  .btn.done{background:rgba(63,201,138,.12);border-color:#2b5a45;color:var(--ok)}
+  .btn.done:hover{background:rgba(63,201,138,.2)}
+  .btn.ghost{background:transparent}
+  .btn.small{min-height:36px;padding:8px 12px;font-size:13px}
+  .lastOpened{margin-top:14px;font-size:13px;color:var(--muted);position:relative;z-index:1}
+  .finished{font-size:15px;color:#c9d3dd;line-height:1.5}
+
+  /* progress */
+  .progress{margin:18px 2px 26px}
+  .progRow{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:8px}
+  .bar{height:8px;background:var(--panel2);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+  .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px;transition:width .4s}
+
+  /* notice */
+  .notice{background:#1f1a10;border:1px solid #6b5520;color:#ffdc9a;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.45;margin-bottom:16px}
+  .notice.info{background:#10202a;border-color:#244a5c;color:#bfe6f5}
+
+  /* list */
+  h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:26px 2px 10px;display:flex;justify-content:space-between}
+  .list{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .row{display:grid;grid-template-columns:44px 46px 1fr auto auto auto;align-items:center;gap:8px;padding:10px 12px;border-top:1px solid var(--line);position:relative}
+  .row:first-child{border-top:0}
+  .row.next{background:linear-gradient(90deg,rgba(240,149,58,.14),transparent 70%)}
+  .row.next::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+  .row.isDone .rTitle,.row.isDone .rNum{color:var(--muted)}
+  .check{width:30px;height:30px;border-radius:9px;border:1.5px solid #3a4654;background:transparent;cursor:pointer;display:grid;place-items:center;color:transparent;font-size:16px;padding:0}
+  .check:hover{border-color:var(--ok)}
+  .check.on{background:var(--ok);border-color:var(--ok);color:#06130d}
+  .check.skip{background:#3a4654;border-color:#3a4654;color:#c9d3dd;font-size:12px}
+  .rNum{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:15px}
+  .rTitle{font-weight:600;font-size:15px;text-decoration:none;display:block;line-height:1.25}
+  .rTitle:hover{color:var(--accent2)}
+  .rSub{font-size:12px;color:var(--muted);margin-top:3px}
+  .rSub .tag{color:#ffcf70}
+  .rDur{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--muted)}
+  .rExt{font-size:11px;color:var(--cyan);text-decoration:none;border:1px solid #244a5c;border-radius:7px;padding:3px 6px;white-space:nowrap}
+  .rPlay{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;text-decoration:none;background:var(--panel2);border:1px solid var(--line);color:var(--accent)}
+  .rPlay:hover{border-color:var(--accent)}
+  .rMore{width:30px;height:34px;border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:18px;border-radius:8px}
+  .rMore:hover{background:var(--panel2);color:var(--text)}
+  .menu{position:absolute;right:12px;top:46px;z-index:5;background:#222a34;border:1px solid #3a4654;border-radius:12px;padding:6px;min-width:230px;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+  .menu button{display:block;width:100%;text-align:left;background:transparent;border:0;color:var(--text);font:500 14px Archivo,sans-serif;padding:10px 12px;border-radius:8px;cursor:pointer}
+  .menu button:hover{background:#2c3642}
+  .menu small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+  .noExt{display:none}
+
+  footer{margin-top:28px;font-size:12px;color:var(--muted);line-height:1.6}
+  footer a{color:#b6c2ce}
+
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(30px);opacity:0;background:#222a34;border:1px solid #3a4654;border-radius:12px;padding:10px 12px 10px 16px;display:flex;gap:12px;align-items:center;font-size:14px;transition:.25s;z-index:20;box-shadow:0 12px 30px rgba(0,0,0,.45);max-width:calc(100% - 32px)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast span{flex:1 1 auto;min-width:0}
+  .toast .btn{flex:0 0 auto}
+
+  @media (max-width:600px){
+    .bigNum{font-size:60px}
+    .brand{font-size:13px}
+    .brand span{display:none}
+    .heroTitle{font-size:21px}
+    .heroMain{gap:14px}
+    .row{grid-template-columns:38px 38px 1fr auto auto;padding:10px}
+    .rDur{display:none}
+    .actions .btn{flex:1 1 auto;justify-content:center}
+    .toast{width:calc(100% - 32px)}
+  }
+  /* player */
+  .player{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:14px;overflow:hidden;border:1px solid var(--line);margin:4px 0 16px;z-index:1}
+  .player iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  .heroTop{display:flex;justify-content:space-between;align-items:center;gap:10px;position:relative;z-index:1}
+  .linkBtn{background:none;border:0;color:var(--muted);font:500 13px Archivo,sans-serif;cursor:pointer;padding:4px 0;text-decoration:underline;text-underline-offset:3px}
+  .linkBtn:hover{color:var(--text)}
+  .heroInfo{display:flex;gap:18px;align-items:flex-end;margin:2px 0 12px;position:relative;z-index:1}
+  .heroInfo .bigNum{font-size:56px}
+  .heroInfo .heroTitle{font-size:22px}
+  .meta{position:relative;z-index:1}
+  .driveLink{font-size:13px;color:var(--muted);text-decoration:none;margin-left:auto;align-self:center}
+  .driveLink:hover{color:var(--text)}
+  .row.playing .rNum{color:var(--accent)}
+  .row.playing .rPlay{background:var(--accent);color:#1a1006;border-color:var(--accent)}
+  .iconBtn{background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:99px;width:30px;height:30px;cursor:pointer;font-size:15px}
+  .iconBtn:hover{color:var(--text)}
+  .hdrRight{display:flex;gap:8px;align-items:center}
+
+  /* settings dialog */
+  .overlay{position:fixed;inset:0;background:rgba(5,8,12,.7);display:none;align-items:center;justify-content:center;z-index:30;padding:16px}
+  .overlay.show{display:flex}
+  .dialog{background:var(--panel);border:1px solid #3a4654;border-radius:18px;padding:20px;width:100%;max-width:520px;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+  .dialog h3{margin:0 0 6px;font-size:18px}
+  .dialog p{margin:0 0 14px;color:var(--muted);font-size:14px;line-height:1.5}
+  .dialog label{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin:12px 0 6px}
+  .dialog input{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:11px 12px;font:14px "JetBrains Mono",monospace}
+  .dialog input:focus{outline:none;border-color:var(--accent)}
+  .dialog .row2{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+  .dialog .msg{font-size:13px;margin-top:12px;min-height:18px}
+  .dialog .msg.err{color:#ff8f8f}
+  .dialog .msg.ok{color:var(--ok)}
+  .dialog hr{border:0;border-top:1px solid var(--line);margin:18px 0 6px}
+  @media (max-width:600px){
+    .heroInfo .bigNum{font-size:44px}
+    .heroInfo .heroTitle{font-size:19px}
+    .hero{padding:14px}
+    .player{margin:2px 0 12px;border-radius:10px}
+  }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><b>One Pace</b><span> · Wano</span> Tracker</div>
+    <div class="hdrRight">
+      <div id="sync" class="pill">Lädt…</div>
+      <button id="btnSettings" class="iconBtn" aria-label="Sync-Einstellungen" title="Sync-Einstellungen">⚙</button>
+    </div>
+  </header>
+
+  <div id="notice"></div>
+  <section id="hero" class="hero">
+    <div id="playerWrap"><div id="player" class="player"></div></div>
+    <div id="heroInfo"></div>
+  </section>
+
+  <div class="progress">
+    <div class="progRow"><span id="progTxt"></span><span id="remTxt" class="mono"></span></div>
+    <div class="bar"><i id="progBar"></i></div>
+  </div>
+
+  <div id="lists"></div>
+
+  <footer>
+    Episodenliste aus der Tabelle <a href="https://docs.google.com/spreadsheets/d/1HoYogAchoU5DWxVJzUy3eZcHMZk_hUmzUVnQm9KxeFI/edit?gid=0#gid=0" target="_blank" rel="noopener">„Onigashima Paced Info“</a> (Stand 05.11.2026). Werden Folgen neu hochgeladen, muss die Liste aktualisiert werden.<br>
+    <a href="https://drive.google.com/drive/folders/1En1_HdnTtr2JO-mHszQ0zpvlzDyODvG2" target="_blank" rel="noopener">Drive-Ordner mit allen Folgen</a> ·
+    Nach End of Wano 04 geht es laut Watch Guide mit Egghead 01 weiter.
+  </footer>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<div id="overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="cfgTitle">
+  <div class="dialog">
+    <h3 id="cfgTitle">Sync einrichten</h3>
+    <p>Trage die Web-App-URL deines Apps Scripts und den Schlüssel aus <code>setup()</code> ein. Beides bleibt nur in diesem Browser gespeichert.</p>
+    <label for="cfgUrl">Web-App-URL</label>
+    <input id="cfgUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false">
+    <label for="cfgToken">Schlüssel</label>
+    <input id="cfgToken" type="text" placeholder="z. B. 3f9c…" autocomplete="off" spellcheck="false">
+    <div class="row2">
+      <button id="cfgSave" class="btn play">Verbinden</button>
+      <button id="cfgClose" class="btn ghost">Schließen</button>
+    </div>
+    <div id="cfgMsg" class="msg"></div>
+    <div id="devLinkBox" style="display:none">
+      <hr>
+      <p style="margin-top:10px">Weitere Geräte: Diesen Link einmal auf iPad/Handy öffnen – dann ist dort alles eingerichtet.</p>
+      <div class="row2" style="margin-top:0">
+        <button id="cfgCopy" class="btn small">Geräte-Link kopieren</button>
+        <button id="cfgDisconnect" class="btn small ghost">Sync trennen</button>
+      </div>
+      <input id="devLinkOut" style="display:none;margin-top:10px" readonly>
+    </div>
+  </div>
+</div>
+
+<script>
+const EPISODES = [{"k":"oni-01","arc":"oni","n":"01","ch":"977-978","ep":"982-983","dur":"34:35","t":"Enter: The Flying Six","id":"1hx1tdd3lreRT4XpgatZlq97Ge--TFhPm"},{"k":"oni-02","arc":"oni","n":"02","ch":"979","ep":"984-985","dur":"18:25","t":"Family Problem","id":"1yOoI3s2aWljM76AqmGmKF3IwCONBavwJ"},{"k":"oni-03","arc":"oni","n":"03","ch":"980","ep":"985-986","dur":"17:49","t":"Fighting Music","id":"1TQlgiYR8gJfljLnsmfBNVENTqDIZlf46"},{"k":"oni-04","arc":"oni","n":"04","ch":"981","ep":"987-988","dur":"22:55","t":"Joining the Fight","id":"199YkR_1_zdCn8gUpWjvTaC2_qp1gz8wI"},{"k":"oni-05","arc":"oni","n":"05","ch":"982","ep":"988-989","dur":"19:25","t":"Scoundrel Meets Scoundrel","id":"1cmUd1g5lL-rzGHpCtpyZ5BxoRKiBbW5x"},{"k":"oni-06","arc":"oni","n":"06","ch":"983","ep":"990-991","dur":"20:17","t":"Thunder","id":"1WqPiO64xRfQ_3Bh2qf4yIbCXDS_VfBwK"},{"k":"oni-07","arc":"oni","n":"07","ch":"984","ep":"991-992","dur":"21:12","t":"My Bible","id":"1_-NRKOcOlKffXnt8aXWA6kKqx9wnM8VA"},{"k":"oni-08","arc":"oni","n":"08","ch":"985","ep":"993-994","dur":"19:55","t":"New Onigashima Project","id":"1FQj7DyprgRbmbUNzhgUGOrlfL-fycqT3"},{"k":"oni-09","arc":"oni","n":"09","ch":"986","ep":"994-995","dur":"19:44","t":"My Name","id":"1or4or0tfiYZmb2WL9W7T6KoRDO0rUVK8","x":"1V5CtUHi0EvLP67yeJoYvKouJrGVotv_z"},{"k":"oni-10","arc":"oni","n":"10","ch":"987","ep":"996-997","dur":"19:07","t":"Retainers of Glory","id":"1xKDJnQTf6MPWZcpWhHsieQ_Sk-KrbKBl"},{"k":"oni-11","arc":"oni","n":"11","ch":"988-989","ep":"997-1000","dur":"36:00","t":"I Don't See Us Losing","id":"1Qahz_AY1IXnyrPyC9bDuXBNQ6K5cE1_7"},{"k":"oni-12","arc":"oni","n":"12","ch":"990-991","ep":"1000-1003","dur":"35:31","t":"Let Us Die!","id":"1p5O1WPdOXDfyCV30iALBYmPE-YV_O1vn"},{"k":"oni-13","arc":"oni","n":"13","ch":"992-993","ep":"1003-1006","dur":"33:36","t":"The Dream of Wano","id":"1LPs8a8xsBG4PRG_ff65yK0DYGBEomTlI"},{"k":"oni-14","arc":"oni","n":"14","ch":"994","ep":"1006-1007","dur":"19:54","t":"My Other Name Is Yamato","id":"1uCwIkVr0w6aw_XEtTLWdU-xfR-AFBA7Q"},{"k":"oni-15","arc":"oni","n":"15","ch":"995","ep":"1008-1009","dur":"16:11","t":"A Kunoichi's Oath","id":"1fa7lMtV7bGl2c05SrLbQF2yZtTBVLiMm"},{"k":"oni-16","arc":"oni","n":"16","ch":"996","ep":"1009-1010","dur":"17:40","t":"Island of the Strongest","id":"1HmK7G_zL88J16t58gXuP-xNwRnEJK-7W"},{"k":"oni-17","arc":"oni","n":"17","ch":"997","ep":"1010-1011","dur":"21:46","t":"Flame Clouds","id":"12Qmz_WEWnhBRVfy_N33FGTvI6LcjCpts"},{"k":"oni-18","arc":"oni","n":"18","ch":"998","ep":"1012-1013","dur":"18:52","t":"Ancient Types","id":"1yL1vVA-H1fEtkf6SzypYpU41x5MxRXjG"},{"k":"oni-19","arc":"oni","n":"19","ch":"999","ep":"1013-1014","dur":"27:12","t":"The Sake I Brewed to Drink With You","id":"1UfpzXnZK9HyQVHxssqqFg-oUGOW0Dkt5"},{"k":"oni-20","arc":"oni","n":"20","ch":"1000","ep":"1015","dur":"22:34","t":"Straw Hat Luffy","id":"1TN-5WKDEOMqxJeUzFJ-y2_hV3DWeG77E"},{"k":"oni-21","arc":"oni","n":"21","ch":"1001-1002","ep":"1016-1017","dur":"27:46","t":"Emperors vs. The New Generation","id":"1EqoqPtidiFhpvdDzmKHh68tE7V35hXj6"},{"k":"oni-22","arc":"oni","n":"22","ch":"1003-1004","ep":"1018-1020","dur":"33:00","t":"Kibi Dango","id":"1WcBlqwrQyg3KaoDLoN0TC35ZvBt-MxhD"},{"k":"oni-23","arc":"oni","n":"23","ch":"1005-1006","ep":"1020-1022","dur":"32:25","t":"The Honorable \"Hyogoro The Flower\"","id":"1pwBWb_WqubOgjvv-F3txET_1eLYnkPy1"},{"k":"oni-24","arc":"oni","n":"24","ch":"1007","ep":"1023-1024","dur":"20:07","t":"Raccoon Dog-san","id":"13_LFqfzvzlStWVmuuVyUFEHEgRdnioa3"},{"k":"oni-25","arc":"oni","n":"25","ch":"1008","ep":"1024-1025","dur":"19:46","t":"Ashura Doji","id":"1Hbfe-Vfa84Nxp80B_wLRujp-UdaZk_fT","x":"1ns6hp9DJFAfFH2FXIWJ9qcoNV3bwR-VG"},{"k":"oni-26","arc":"oni","n":"26","ch":"1009-1010","ep":"1025-1028","dur":"28:37","t":"Conqueror's Haki","id":"1N0PPZtMHXnocxqGLES0YCEQdncxPksbo"},{"k":"oni-27","arc":"oni","n":"27","ch":"1011","ep":"1028, 1031","dur":"22:32","t":"The Code of Oshiruko","id":"13eYoCjYGG_qkizrddvoeoMTtldXC7oL3"},{"k":"oni-28","arc":"oni","n":"28","ch":"1012-1013","ep":"1032-1034","dur":"30:19","t":"Anarchy in the B.M.","id":"1fxbNdlUFBq7mM4iWdxKDjPDyDXCApQlY","x":"17Nn0aM0-Lqqg7HVBxCuY6GsQlFInsHV0"},{"k":"oni-29","arc":"oni","n":"29","ch":"1014-1015","ep":"1034-1036","dur":"35:09","t":"A Lifelong Ham Actor","id":"1p-8bkByc_uGs_Kh_7NoozM8I4dvZUSVa"},{"k":"oni-30","arc":"oni","n":"30","ch":"1015-1017","ep":"1037-1038","dur":"24:00","t":"This is Otama!!","id":"1g9XoJoGXIkH_jrBjfCohCvDLWb7-2xao"},{"k":"oni-31","arc":"oni","n":"31","ch":"1017-1018","ep":"1039-1040","dur":"21:50","t":"Jinbe vs Who's Who","id":"1s1w79nFCmQDbG5AObNEvn0fd3zBzDRjN"},{"k":"oni-32","arc":"oni","n":"32","ch":"1019-1021","ep":"1041-1043","dur":"29:29","t":"Triceracopter","id":"10afm24x_B-UU5QwxId2zj4FKtK_IKZw7"},{"k":"oni-33","arc":"oni","n":"33","ch":"1021-1022","ep":"1044-1046","dur":"27:49","t":"The Stars Take the Stage","id":"1uzr9xXiyX6e24vTV9EpoASuTNG19rq46","x":"1wY-k_kqg_sB7XJKdu95HiTkBR-DokMze"},{"k":"oni-34","arc":"oni","n":"34","ch":"1023-1024","ep":"1046-1048","dur":"32:22","t":"So-and-So","id":"1ekL2SqwY31ZW_3iinzhFCfBUAFXIxRyV"},{"k":"oni-35","arc":"oni","n":"35","ch":"1025-1026","ep":"1049-1051","dur":"36:03","t":"Twin Dragons","id":"1fRMIQi5-hRQDETcN2Ge0u2htUMf67HVA"},{"k":"oni-36","arc":"oni","n":"36","ch":"1027-1028","ep":"1051-1053","dur":"26:22","t":"Brachiosnakeus","id":"1rawRcitmszt4SYGXnDLbNhGQsyPNkJGu"},{"k":"oni-37","arc":"oni","n":"37","ch":"1029-1030","ep":"1054-1055","dur":"29:01","t":"The Tower","id":"1dCa-fB-Jeaw7yIiT-g36CeJWXJeN7T1N"},{"k":"oni-38","arc":"oni","n":"38","ch":"1030-1031","ep":"1056-1057","dur":"28:44","t":"Soldier of Science","id":"1EBTNo1ak5xUDpqya8qby9npq3MFF3fmi"},{"k":"oni-39","arc":"oni","n":"39","ch":"1032-1033","ep":"1058-1060","dur":"33:54","t":"Oden's Beloved Blade","id":"1ddp2Wi_aFP_YB3YoANB6rt-jOPo0pbYs"},{"k":"oni-40","arc":"oni","n":"40","ch":"1034-1036","ep":"1060-1062","dur":"27:54","t":"Wings of the Pirate King","id":"11_WK5s22Zp1_OpN5mFXsdscStNIb-5dn","x":"1hh3-xHSMTJG_JeJ4TP6wRLlbIH0ZBJGi"},{"k":"oni-41","arc":"oni","n":"41","ch":"1036-1037","ep":"1063-1064","dur":"26:58","t":"Drunken Dragon Bagua","id":"1A10rK6IsDz8L_nAoKRKC5mkd5G2tMCUE"},{"k":"oni-42","arc":"oni","n":"42","ch":"1038-1040","ep":"1065-1067","dur":"38:39","t":"The Main Attraction","id":"1ICVBY_qPwyygx0-7N_6YKaodaiVHVJ7c","x":"1wXMS1M-4i9maZ_AEvMTcXf69BQ-6HWm-"},{"k":"oni-43","arc":"oni","n":"43","ch":"1041","ep":"1068-1069","dur":"19:22","t":"Komurasaki","id":"1MSGYEj4ihkT-ov3Q-Tfd6w7kRt-cQsTq"},{"k":"oni-44","arc":"oni","n":"44","ch":"1042-1043","ep":"1069-1070","dur":"24:50","t":"Let Us Face Death Together!","id":"1fUver-hh0NrXpbpJX6qLwQBFXExmVT7z"},{"k":"oni-45","arc":"oni","n":"45","ch":"1044-1046","ep":"1071-1072","dur":"28:06","t":"Warrior of Liberation","id":"1hav6R4Wmdk7cQQ-pI3WnKc-df1mowRBg"},{"k":"oni-46","arc":"oni","n":"46","ch":"1046-1047","ep":"1073-1074","dur":"28:54","t":"The Skies Above the Capital","id":"1e1FTep-ff4RihS1Uf85dE0GSHmtRLap4"},{"k":"oni-47","arc":"oni","n":"47","ch":"1048-1049","ep":"1075-1076","dur":"30:25","t":"The World You Wish For","id":"1erRePE7SzR_vDlLT1AempxDbfNce7tpZ"},{"k":"oni-48","arc":"oni","n":"48","ch":"1050-1051","ep":"1077-1078","dur":"34:31","t":"Kozuki Momonosuke","id":"1_tJR6WIbu1_i-mqHoF1o4olaZqcWNm_J"},{"k":"eow-01","arc":"eow","n":"01","ch":"1052","ep":"1079","dur":"19:01","t":"New Morning","id":"1_IV93-rVurClxPxbcE5DFDeNpkMLdJQP"},{"k":"eow-02","arc":"eow","n":"02","ch":"1053-1054","ep":"1080-1081","dur":"32:43","t":"New Emperors","id":"1RtQtrZxfh8PuWZ1uoS87R6hPwV_rEK9e"},{"k":"eow-03","arc":"eow","n":"03","ch":"1055-1056","ep":"1082-1083","dur":"32:44","t":"New Era","id":"1WE8u5FhC_KXRzqY9RNfRkf8vnfzyGvCE"},{"k":"eow-03.5","arc":"eow","n":"03.5","ch":"","ep":"1084","dur":"19:44","t":"Farewell","id":"1aLnBB5_J1vf-EjJhcw8qkL33MwB2zT9l","filler":true},{"k":"eow-04","arc":"eow","n":"04","ch":"1057","ep":"1085","dur":"21:13","t":"Final Curtain","id":"1PAZvOatv21xF-NN--OfDXDMnL53FiSvb"}];
+const ARCS = { oni: "Onigashima", eow: "End of Wano" };
+const LS_STATE = "onepace-wano-progress-v1";
+const LS_CFG = "onepace-sync-config-v1";
+const DOC_VERSION = 1;
+const POLL_MS = 60000;
+
+// ---------- state ----------
+// done: { [episodeKey]: "w" (gesehen) | "s" (übersprungen) }
+// lastOpened: { k, at } — zuletzt im Player geladen
+// pos: reserviert für den nächsten Schritt (Zeitstempel pro Folge)
+let state = { v: DOC_VERSION, done: {}, lastOpened: null, pos: {}, updatedAt: 0 };
+let cfg = null;            // { url, token }
+let syncState = "off";     // off | syncing | ok | error
+let selectedKey = null;    // Folge im Player (nur lokal, nicht synchronisiert)
+let playerSrc = null;      // aktuell geladene Drive-ID
+let openMenu = null;
+
+const $ = (id) => document.getElementById(id);
+const byKey = Object.fromEntries(EPISODES.map((e, i) => [e.k, { ...e, i }]));
+const num = (n) => n.replace(/^0(?=\d)/, "");
+const viewUrl = (id) => `https://drive.google.com/file/d/${id}/view`;
+const previewUrl = (id) => `https://drive.google.com/file/d/${id}/preview`;
+const secs = (d) => { const p = d.split(":").map(Number); return p.length === 3 ? p[0]*3600+p[1]*60+p[2] : p[0]*60+(p[1]||0); };
+
+function normalize(d) {
+  return {
+    v: DOC_VERSION,
+    done: (d && typeof d.done === "object" && d.done) ? { ...d.done } : {},
+    lastOpened: (d && d.lastOpened && byKey[d.lastOpened.k]) ? { ...d.lastOpened } : null,
+    pos: (d && typeof d.pos === "object" && d.pos) ? { ...d.pos } : {},
+    updatedAt: (d && Number(d.updatedAt)) || 0,
+  };
+}
+function nextUp() { return EPISODES.find((e) => !state.done[e.k]) || null; }
+function selected() { return (selectedKey && byKey[selectedKey]) || nextUp(); }
+
+// ---------- local storage ----------
+function lsGet(k) { try { const r = localStorage.getItem(k); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+// ---------- sync (Apps Script endpoint) ----------
+function setSync(kind) {
+  syncState = kind;
+  const p = $("sync");
+  const map = {
+    off: ["warn", "Sync nicht eingerichtet"],
+    syncing: ["", "Synchronisiere…"],
+    ok: ["ok", "Synchronisiert"],
+    error: ["warn", "Offline – lokal gespeichert"],
+  };
+  p.className = "pill " + map[kind][0]; p.textContent = map[kind][1];
+}
+
+async function apiGet() {
+  const r = await fetch(cfg.url + (cfg.url.includes("?") ? "&" : "?") + "token=" + encodeURIComponent(cfg.token), { method: "GET", cache: "no-store" });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || "Fehler");
+  return j.state ? normalize(j.state) : null;
+}
+async function apiPost(s) {
+  // text/plain-Body → "simple request", kein CORS-Preflight
+  const r = await fetch(cfg.url, { method: "POST", body: JSON.stringify({ token: cfg.token, state: s }) });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || "Fehler");
+  return j;
+}
+
+let pushTimer = null, pushScheduled = false, pushing = false, pushAgain = false;
+function persist() {
+  state.updatedAt = Date.now();
+  lsSet(LS_STATE, state);
+  if (!cfg) return;
+  clearTimeout(pushTimer); pushScheduled = true;
+  pushTimer = setTimeout(() => { pushScheduled = false; push(); }, 500);
+}
+async function push() {
+  if (!cfg) return;
+  if (pushing) { pushAgain = true; return; }
+  pushing = true; setSync("syncing");
+  try {
+    const res = await apiPost(JSON.parse(JSON.stringify(state)));
+    if (res.stale && res.state) adopt(normalize(res.state));
+    setSync("ok");
+  } catch (e) { setSync("error"); }
+  finally {
+    pushing = false;
+    if (pushAgain) { pushAgain = false; push(); }
+  }
+}
+async function pull() {
+  if (!cfg || pushing || pushScheduled) return;
+  try {
+    const remote = await apiGet();
+    if (remote && remote.updatedAt > state.updatedAt) adopt(remote);
+    else if ((!remote && (Object.keys(state.done).length || state.lastOpened)) || (remote && state.updatedAt > remote.updatedAt)) { await push(); return; }
+    setSync("ok");
+  } catch (e) { setSync("error"); }
+}
+function adopt(remote) {
+  if (JSON.stringify(remote) === JSON.stringify(state)) return;
+  state = remote; lsSet(LS_STATE, state);
+  closeMenu(); render();
+}
+
+// ---------- actions ----------
+let undoSnapshot = null;
+function remember() { undoSnapshot = JSON.parse(JSON.stringify(state.done)); }
+function markDone(k, how = "w") {
+  remember(); state.done[k] = how;
+  if (selectedKey === k) selectedKey = null;   // Player springt zur nächsten offenen Folge
+  persist(); render();
+}
+function unmark(k) { remember(); delete state.done[k]; persist(); render(); }
+function continueFrom(k) {
+  remember();
+  const idx = byKey[k].i;
+  EPISODES.forEach((e, i) => { if (i < idx) { if (!state.done[e.k]) state.done[e.k] = "w"; } else delete state.done[e.k]; });
+  selectedKey = null;
+  persist(); render();
+  toast(`Weiter ab Folge ${num(byKey[k].n)} – alles davor als gesehen markiert.`, true);
+}
+function undo() { if (!undoSnapshot) return; state.done = undoSnapshot; undoSnapshot = null; persist(); render(); hideToast(); }
+function play(k, driveId) {
+  selectedKey = k;
+  state.lastOpened = { k, at: Date.now() };
+  persist(); render(driveId);
+  $("hero").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+let toastTimer = null;
+function toast(msg, withUndo) {
+  const t = $("toast"); t.textContent = "";
+  t.append(el("span", {}, msg));
+  if (withUndo) t.append(el("button", { class: "btn small ghost", onclick: undo }, "Rückgängig"));
+  t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 6000);
+}
+function hideToast() { $("toast").classList.remove("show"); }
+
+// ---------- render ----------
+function fmtRel(ts) {
+  const d = new Date(ts), now = new Date();
+  const time = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const day = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (ts >= day) return `heute, ${time}`;
+  if (ts >= day - 864e5) return `gestern, ${time}`;
+  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" }) + `, ${time}`;
+}
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) n.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null) n.append(c);
+  return n;
+}
+
+// Der Player liegt außerhalb des neu gerenderten Bereichs, damit er beim Abhaken nicht neu lädt.
+function updatePlayer(driveId) {
+  const e = selected();
+  const wrap = $("playerWrap");
+  if (!e) { wrap.style.display = "none"; return; }
+  wrap.style.display = "";
+  const id = driveId || (playerSrc && (playerSrc === e.id || playerSrc === e.x) && selectedKey === e.k ? playerSrc : e.id);
+  if (id !== playerSrc) {
+    playerSrc = id;
+    const box = $("player"); box.textContent = "";
+    box.append(el("iframe", { src: previewUrl(id), allow: "autoplay; fullscreen", allowfullscreen: "", title: `Folge ${num(e.n)} – ${e.t}` }));
+  }
+}
+
+function renderHero() {
+  const h = $("heroInfo"); h.textContent = "";
+  const e = selected();
+  const nu = nextUp();
+  if (!e) {
+    h.append(
+      el("div", { class: "eyebrow" }, "Geschafft"),
+      el("h1", { class: "heroTitle", style: "margin-top:8px" }, "Wano ist durch! 🎉"),
+      el("p", { class: "finished" }, "Laut Watch Guide geht es mit Egghead 01 weiter. Sag Claude Bescheid, dann kommt der nächste Arc in den Tracker."),
+    );
+    return;
+  }
+  const isNext = nu && nu.k === e.k;
+  const top = el("div", { class: "heroTop" },
+    el("div", { class: "eyebrow" }, isNext ? "Next up" : state.done[e.k] ? "Läuft · bereits gesehen" : "Läuft gerade"),
+    !isNext && nu ? el("button", { class: "linkBtn", onclick: () => { selectedKey = null; render(); } }, `Zurück zu Next up (${num(nu.n)})`) : null,
+  );
+  const chips = [];
+  if (e.filler) chips.push(el("span", { class: "chip filler" }, "Filler · optional"));
+  if (e.ch) chips.push(el("span", { class: "chip" }, "Kapitel ", el("b", {}, e.ch)));
+  chips.push(el("span", { class: "chip" }, "Anime ", el("b", {}, e.ep)));
+  chips.push(el("span", { class: "chip mono" }, e.dur));
+
+  const acts = [];
+  if (!state.done[e.k]) {
+    acts.push(el("button", { class: "btn done", onclick: () => {
+      markDone(e.k); const n = nextUp();
+      toast(n ? `Folge ${num(e.n)} gesehen ✓ – als Nächstes: ${num(n.n)}` : "Folge gesehen ✓", true);
+    } }, "Gesehen ✓ · nächste Folge"));
+  }
+  if (e.x) {
+    const onExt = playerSrc === e.x;
+    acts.push(el("button", { class: "btn ghost", onclick: () => play(e.k, onExt ? e.id : e.x) }, onExt ? "Normale Version" : "Extended-Version"));
+  }
+  if (e.filler && !state.done[e.k]) acts.push(el("button", { class: "btn ghost", onclick: () => { markDone(e.k, "s"); toast("Filler übersprungen", true); } }, "Überspringen"));
+  acts.push(el("a", { class: "driveLink", href: viewUrl(playerSrc || e.id), target: "_blank", rel: "noopener" }, "In Drive öffnen ↗"));
+
+  h.append(
+    top,
+    el("div", { class: "heroInfo" },
+      el("div", { class: "bigNum" }, num(e.n)),
+      el("div", {}, el("div", { class: "heroArc" }, ARCS[e.arc]), el("h1", { class: "heroTitle" }, e.t)),
+    ),
+    el("div", { class: "meta" }, chips),
+    el("div", { class: "actions" }, acts),
+  );
+  if (state.lastOpened) {
+    const lo = byKey[state.lastOpened.k];
+    h.append(el("div", { class: "lastOpened" }, `Zuletzt geöffnet: ${ARCS[lo.arc]} ${num(lo.n)} – „${lo.t}“ · ${fmtRel(state.lastOpened.at)}`));
+  }
+}
+
+function render(driveId) {
+  updatePlayer(driveId);
+  renderHero();
+  const done = EPISODES.filter((e) => state.done[e.k]);
+  const rest = EPISODES.filter((e) => !state.done[e.k]);
+  const remain = rest.reduce((s, e) => s + secs(e.dur), 0);
+  $("progTxt").textContent = `${done.length} / ${EPISODES.length} Folgen`;
+  $("remTxt").textContent = rest.length ? `noch ${Math.floor(remain / 3600)} h ${String(Math.round((remain % 3600) / 60)).padStart(2, "0")} min` : "fertig";
+  $("progBar").style.width = (done.length / EPISODES.length * 100) + "%";
+
+  const notice = $("notice"); notice.textContent = "";
+  if (!cfg) notice.append(el("div", { class: "notice" }, "Sync ist noch nicht eingerichtet – der Fortschritt bleibt nur in diesem Browser. ", el("button", { class: "linkBtn", style: "color:inherit", onclick: openSettings }, "Jetzt einrichten")));
+  else if (!done.length) notice.append(el("div", { class: "notice info" }, "Erster Start: Tippe bei der Folge, mit der du weitermachst, auf „⋯“ → „Ab hier weiterschauen“. Alles davor wird als gesehen markiert."));
+
+  const nu = nextUp(), sel = selected();
+  const lists = $("lists"); lists.textContent = "";
+  for (const arc of Object.keys(ARCS)) {
+    const eps = EPISODES.filter((e) => e.arc === arc);
+    const dn = eps.filter((e) => state.done[e.k]).length;
+    lists.append(el("h2", {}, el("span", {}, ARCS[arc]), el("span", { class: "mono" }, `${dn}/${eps.length}`)));
+    const list = el("div", { class: "list" });
+    for (const e of eps) {
+      const st = state.done[e.k];
+      const row = el("div", { class: "row" + (st ? " isDone" : "") + (nu && nu.k === e.k ? " next" : "") + (sel && sel.k === e.k ? " playing" : "") });
+      const sub = [];
+      if (e.filler) sub.push(el("span", { class: "tag" }, "Filler · optional · "));
+      sub.push((e.ch ? `Kap. ${e.ch} · ` : "") + `Ep. ${e.ep}`);
+      row.append(
+        el("button", {
+          class: "check" + (st === "w" ? " on" : st === "s" ? " skip" : ""),
+          title: st ? "Als ungesehen markieren" : "Als gesehen markieren",
+          "aria-label": st ? `Folge ${num(e.n)} als ungesehen markieren` : `Folge ${num(e.n)} als gesehen markieren`,
+          onclick: () => st ? unmark(e.k) : markDone(e.k),
+        }, st === "s" ? "–" : "✓"),
+        el("div", { class: "rNum" }, num(e.n)),
+        el("div", {},
+          el("a", { class: "rTitle", href: "#", onclick: (ev) => { ev.preventDefault(); play(e.k); } }, e.t),
+          el("div", { class: "rSub" }, sub, e.x ? el("span", {}, " · ", el("a", { class: "rExt", href: "#", onclick: (ev) => { ev.preventDefault(); play(e.k, e.x); } }, "Extended")) : null),
+        ),
+        el("div", { class: "rDur" }, e.dur),
+        el("button", { class: "rPlay", style: "cursor:pointer", "aria-label": `Folge ${num(e.n)} abspielen`, onclick: () => play(e.k) }, "▶"),
+        el("button", { class: "rMore", "aria-label": "Mehr", onclick: (ev) => { ev.stopPropagation(); toggleMenu(row, e); } }, "⋯"),
+      );
+      list.append(row);
+    }
+    lists.append(list);
+  }
+}
+
+function toggleMenu(row, e) {
+  if (openMenu) { const was = openMenu.row; openMenu.node.remove(); openMenu = null; if (was === row) return; }
+  const st = state.done[e.k];
+  const m = el("div", { class: "menu", onclick: (ev) => ev.stopPropagation() },
+    el("button", { onclick: () => { closeMenu(); continueFrom(e.k); } }, "Ab hier weiterschauen", el("small", {}, "Alles davor = gesehen, ab hier = offen")),
+    st ? el("button", { onclick: () => { closeMenu(); unmark(e.k); } }, "Als ungesehen markieren")
+       : el("button", { onclick: () => { closeMenu(); markDone(e.k); } }, "Als gesehen markieren"),
+    !st ? el("button", { onclick: () => { closeMenu(); markDone(e.k, "s"); } }, "Überspringen") : null,
+  );
+  row.append(m); openMenu = { row, node: m };
+}
+function closeMenu() { if (openMenu) { openMenu.node.remove(); openMenu = null; } }
+document.addEventListener("click", closeMenu);
+
+// ---------- settings ----------
+function openSettings() {
+  $("cfgUrl").value = cfg ? cfg.url : "";
+  $("cfgToken").value = cfg ? cfg.token : "";
+  setMsg("", "");
+  $("devLinkBox").style.display = cfg ? "" : "none";
+  $("overlay").classList.add("show");
+}
+function closeSettings() { $("overlay").classList.remove("show"); }
+function setMsg(kind, text) { const m = $("cfgMsg"); m.className = "msg " + kind; m.textContent = text; }
+function deviceLink() {
+  const payload = btoa(unescape(encodeURIComponent(JSON.stringify(cfg))));
+  return location.origin + location.pathname + "#sync=" + payload;
+}
+async function saveSettings() {
+  const url = $("cfgUrl").value.trim(), token = $("cfgToken").value.trim();
+  if (!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(url)) { setMsg("err", "Die URL sollte mit https://script.google.com/… beginnen und auf /exec enden."); return; }
+  if (!token) { setMsg("err", "Bitte den Schlüssel eintragen."); return; }
+  const prev = cfg; cfg = { url, token };
+  setMsg("", "Teste Verbindung…");
+  try {
+    await apiGet();
+    lsSet(LS_CFG, cfg);
+    setMsg("ok", "Verbunden ✓");
+    $("devLinkBox").style.display = "";
+    await pull(); render();
+  } catch (e) {
+    cfg = prev;
+    setMsg("err", "Verbindung fehlgeschlagen. URL, Schlüssel und Bereitstellung („Zugriff: Jeder“) prüfen.");
+  }
+}
+async function copyDeviceLink() {
+  try { await navigator.clipboard.writeText(deviceLink()); setMsg("ok", "Link kopiert – auf dem anderen Gerät einmal öffnen."); }
+  catch (e) { $("devLinkOut").value = deviceLink(); $("devLinkOut").style.display = ""; $("devLinkOut").select(); setMsg("", "Link unten markiert – bitte manuell kopieren."); }
+}
+function disconnect() { cfg = null; try { localStorage.removeItem(LS_CFG); } catch (e) {} setSync("off"); closeSettings(); render(); }
+
+// ---------- boot ----------
+(function boot() {
+  // Einrichtungs-Link: …/#sync=<base64>
+  const m = location.hash.match(/^#sync=(.+)$/);
+  if (m) {
+    try { const c = JSON.parse(decodeURIComponent(escape(atob(m[1])))); if (c.url && c.token) lsSet(LS_CFG, { url: c.url, token: c.token }); } catch (e) {}
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+  cfg = lsGet(LS_CFG);
+  const local = lsGet(LS_STATE);
+  if (local) state = normalize(local);
+
+  $("btnSettings").onclick = openSettings;
+  $("cfgSave").onclick = saveSettings;
+  $("cfgClose").onclick = closeSettings;
+  $("cfgCopy").onclick = copyDeviceLink;
+  $("cfgDisconnect").onclick = disconnect;
+  $("overlay").addEventListener("click", (ev) => { if (ev.target.id === "overlay") closeSettings(); });
+
+  render();
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") pull(); });
+  window.addEventListener("focus", pull);
+  setInterval(() => { if (document.visibilityState === "visible") pull(); }, POLL_MS);
+  if (!cfg) { setSync("off"); return; }
+  setSync("syncing");
+  pull();
+})();
+
+</script>
+</body>
+</html>
