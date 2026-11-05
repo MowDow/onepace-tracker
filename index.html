@@ -146,6 +146,21 @@
     .hero{padding:14px}
     .player{margin:2px 0 12px;border-radius:10px}
   }
+
+  /* Zeitstempel */
+  .posRow{position:relative;z-index:1;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .posLine{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:10px;font-size:14px}
+  .posNow{font-size:16px;font-weight:700;color:var(--text)}
+  .posWhen{color:var(--muted);font-size:13px}
+  .posForm{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+  .posInput{width:110px;background:var(--bg);border:1px solid var(--line);border-radius:10px;color:var(--text);padding:8px 10px;font-size:14px;min-height:36px}
+  .posInput:focus{outline:none;border-color:var(--accent)}
+  .posInput.bad{border-color:#ff8f8f}
+  .usState{font-size:12px;color:var(--muted);margin-left:auto}
+  .usState.on{color:var(--ok)}
+  .posTag{color:var(--accent2)}
+  .playerHold{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:14px}
+  @media (max-width:600px){ .usState{margin-left:0;width:100%} }
 </style>
 
 </head>
@@ -229,7 +244,24 @@ const $ = (id) => document.getElementById(id);
 const byKey = Object.fromEntries(EPISODES.map((e, i) => [e.k, { ...e, i }]));
 const num = (n) => n.replace(/^0(?=\d)/, "");
 const viewUrl = (id) => `https://drive.google.com/file/d/${id}/view`;
-const previewUrl = (id) => `https://drive.google.com/file/d/${id}/preview`;
+const previewUrl = (id, t) => `https://drive.google.com/file/d/${id}/preview` + (t > 5 ? `?t=${Math.floor(t)}s` : "");
+const viewUrlAt = (id, t) => viewUrl(id) + (t > 5 ? `?t=${Math.floor(t)}s` : "");
+function fmtT(sec) {
+  sec = Math.max(0, Math.floor(sec || 0));
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = String(sec % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${x}` : `${m}:${x}`;
+}
+// "1055" → 10:55 · "10:55" · "10.55" · "1:02:03" · "10m55s" · "655s"
+function parseT(str) {
+  const v = String(str || "").trim().toLowerCase().replace(",", ".");
+  if (!v) return null;
+  let m;
+  if ((m = v.match(/^(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+)s)?$/)) && (m[1] || m[2] || m[3])) return (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0);
+  if (/^\d+([:.]\d{1,2}){1,2}$/.test(v)) { const p = v.split(/[:.]/).map(Number); if (p.slice(1).some((x) => x > 59)) return null; return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1]; }
+  if (/^\d{3,4}$/.test(v)) { const mm = Math.floor(+v / 100), ss = +v % 100; return ss > 59 ? null : mm * 60 + ss; }
+  if (/^\d{1,2}$/.test(v)) return +v * 60; // nur Minuten
+  return null;
+}
 const secs = (d) => { const p = d.split(":").map(Number); return p.length === 3 ? p[0]*3600+p[1]*60+p[2] : p[0]*60+(p[1]||0); };
 
 function normalize(d) {
@@ -275,18 +307,21 @@ async function apiPost(s) {
   return j;
 }
 
-let pushTimer = null, pushScheduled = false, pushing = false, pushAgain = false;
-function persist() {
+let pushTimer = null, pushScheduled = false, pushing = false, pushAgain = false, lastPushAt = 0;
+// throttle: laufende Wiedergabe → höchstens alle 30 s an den Server; sonst nach 0,5 s
+function persist(throttle) {
   state.updatedAt = Date.now();
   lsSet(LS_STATE, state);
   if (!cfg) return;
+  const delay = throttle ? Math.max(500, lastPushAt + 30000 - Date.now()) : 500;
+  if (pushScheduled && throttle) return;
   clearTimeout(pushTimer); pushScheduled = true;
-  pushTimer = setTimeout(() => { pushScheduled = false; push(); }, 500);
+  pushTimer = setTimeout(() => { pushScheduled = false; push(); }, delay);
 }
 async function push() {
   if (!cfg) return;
   if (pushing) { pushAgain = true; return; }
-  pushing = true; setSync("syncing");
+  pushing = true; lastPushAt = Date.now(); if (syncState !== "ok") setSync("syncing");
   try {
     const res = await apiPost(JSON.parse(JSON.stringify(state)));
     if (res.stale && res.state) adopt(normalize(res.state));
@@ -316,7 +351,7 @@ function adopt(remote) {
 let undoSnapshot = null;
 function remember() { undoSnapshot = JSON.parse(JSON.stringify(state.done)); }
 function markDone(k, how = "w") {
-  remember(); state.done[k] = how;
+  remember(); state.done[k] = how; delete state.pos[k];
   if (selectedKey === k) selectedKey = null;   // Player springt zur nächsten offenen Folge
   persist(); render();
 }
@@ -324,7 +359,7 @@ function unmark(k) { remember(); delete state.done[k]; persist(); render(); }
 function continueFrom(k) {
   remember();
   const idx = byKey[k].i;
-  EPISODES.forEach((e, i) => { if (i < idx) { if (!state.done[e.k]) state.done[e.k] = "w"; } else delete state.done[e.k]; });
+  EPISODES.forEach((e, i) => { if (i < idx) { if (!state.done[e.k]) state.done[e.k] = "w"; delete state.pos[e.k]; } else delete state.done[e.k]; });
   selectedKey = null;
   persist(); render();
   toast(`Weiter ab Folge ${num(byKey[k].n)} – alles davor als gesehen markiert.`, true);
@@ -338,10 +373,11 @@ function play(k, driveId) {
 }
 
 let toastTimer = null;
-function toast(msg, withUndo) {
+function toast(msg, withUndo, action) {
   const t = $("toast"); t.textContent = "";
   t.append(el("span", {}, msg));
   if (withUndo) t.append(el("button", { class: "btn small ghost", onclick: undo }, "Rückgängig"));
+  if (action) t.append(el("button", { class: "btn small done", onclick: () => { hideToast(); action.fn(); } }, action.label));
   t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 6000);
 }
 function hideToast() { $("toast").classList.remove("show"); }
@@ -367,16 +403,18 @@ function el(tag, attrs = {}, ...kids) {
 }
 
 // Der Player liegt außerhalb des neu gerenderten Bereichs, damit er beim Abhaken nicht neu lädt.
-function updatePlayer(driveId) {
+function updatePlayer(driveId, forceT) {
   const e = selected();
   const wrap = $("playerWrap");
   if (!e) { wrap.style.display = "none"; return; }
   wrap.style.display = "";
   const id = driveId || (playerSrc && (playerSrc === e.id || playerSrc === e.x) && selectedKey === e.k ? playerSrc : e.id);
-  if (id !== playerSrc) {
-    playerSrc = id;
+  if (holdPlayer) { if (!$("player").firstChild) $("player").append(el("div", { class: "playerHold" }, "Lade deinen Stand…")); return; }
+  if (id !== playerSrc || forceT != null) {
+    playerSrc = id; playerKey = e.k; usSource = null;
+    const t = forceT != null ? forceT : resumeT(e.k);
     const box = $("player"); box.textContent = "";
-    box.append(el("iframe", { src: previewUrl(id), allow: "autoplay; fullscreen", allowfullscreen: "", title: `Folge ${num(e.n)} – ${e.t}` }));
+    box.append(el("iframe", { src: previewUrl(id, t), allow: "autoplay; fullscreen", allowfullscreen: "", title: `Folge ${num(e.n)} – ${e.t}` }));
   }
 }
 
@@ -425,15 +463,17 @@ function renderHero() {
     ),
     el("div", { class: "meta" }, chips),
     el("div", { class: "actions" }, acts),
+    el("div", { id: "posRow", class: "posRow" }),
   );
+  renderPosRow();
   if (state.lastOpened) {
     const lo = byKey[state.lastOpened.k];
     h.append(el("div", { class: "lastOpened" }, `Zuletzt geöffnet: ${ARCS[lo.arc]} ${num(lo.n)} – „${lo.t}“ · ${fmtRel(state.lastOpened.at)}`));
   }
 }
 
-function render(driveId) {
-  updatePlayer(driveId);
+function render(driveId, forceT) {
+  updatePlayer(driveId, forceT);
   renderHero();
   const done = EPISODES.filter((e) => state.done[e.k]);
   const rest = EPISODES.filter((e) => !state.done[e.k]);
@@ -459,6 +499,7 @@ function render(driveId) {
       const sub = [];
       if (e.filler) sub.push(el("span", { class: "tag" }, "Filler · optional · "));
       sub.push((e.ch ? `Kap. ${e.ch} · ` : "") + `Ep. ${e.ep}`);
+      if (!st && state.pos[e.k] && state.pos[e.k].t > 5) sub.push(el("span", { class: "posTag" }, ` · bei ${fmtT(state.pos[e.k].t)}`));
       row.append(
         el("button", {
           class: "check" + (st === "w" ? " on" : st === "s" ? " skip" : ""),
@@ -494,6 +535,71 @@ function toggleMenu(row, e) {
 }
 function closeMenu() { if (openMenu) { openMenu.node.remove(); openMenu = null; } }
 document.addEventListener("click", closeMenu);
+
+// ---------- Zeitstempel ----------
+let holdPlayer = false;    // Player erst laden, wenn der aktuelle Stand vom Server da ist
+let playerKey = null;      // Folge, die gerade im iframe geladen ist
+let usSource = null;       // Fenster des Userscripts im Player (für "seek"-Befehle)
+let usSeen = false;        // Userscript hat sich in diesem Besuch gemeldet
+function resumeT(k) { const p = state.pos[k]; if (!p || !(p.t > 5)) return 0; if (p.d && p.t > p.d - 15) return 0; return p.t; }
+function setPos(k, t, d, throttle) {
+  const prev = state.pos[k] || {};
+  state.pos[k] = { t: Math.round(t), d: Math.round(d || prev.d || 0), at: Date.now() };
+  persist(throttle);
+}
+function resumeHere(k) {
+  const t = resumeT(k);
+  if (usSource) { try { usSource.postMessage({ src: "onepace-tr", type: "seek", t }, "*"); } catch (e) {} }
+  else render(undefined, t); // Player mit ?t= neu laden
+}
+function renderPosRow() {
+  const row = $("posRow"); if (!row) return;
+  const e = selected(); if (!e || state.done[e.k]) { row.textContent = ""; return; }
+  const old = $("posInput"), focused = old && document.activeElement === old, val = old ? old.value : "";
+  row.textContent = "";
+  const p = state.pos[e.k], t = resumeT(e.k);
+  const line = el("div", { class: "posLine" });
+  if (p && p.t > 5) {
+    line.append(el("span", { class: "posNow mono" }, `⏱ ${fmtT(p.t)}${p.d ? " / " + fmtT(p.d) : ""}`), el("span", { class: "posWhen" }, ` · gespeichert ${fmtRel(p.at)}`));
+    if (t) line.append(el("button", { class: "btn small play", onclick: () => resumeHere(e.k) }, `▶ Ab ${fmtT(t)} weiterschauen`), el("a", { class: "linkBtn", href: viewUrlAt(playerSrc || e.id, t), target: "_blank", rel: "noopener" }, "in Drive ab hier ↗"));
+  } else {
+    line.append(el("span", { class: "posWhen" }, "Noch keine Zeit gespeichert."));
+  }
+  const inp = el("input", { id: "posInput", class: "posInput mono", inputmode: "numeric", placeholder: "z. B. 1725", "aria-label": "Zeit in der Folge (Minuten:Sekunden)", autocomplete: "off" });
+  inp.value = val;
+  const save = () => {
+    const sec = parseT(inp.value);
+    if (sec == null) { inp.classList.add("bad"); inp.focus(); return; }
+    inp.classList.remove("bad"); inp.value = "";
+    setPos(e.k, sec, (state.pos[e.k] && state.pos[e.k].d) || secs(e.dur), false);
+    render(); toast(`Zeit für Folge ${num(e.n)} gespeichert: ${fmtT(sec)}`);
+  };
+  inp.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); save(); } });
+  const form = el("div", { class: "posForm" }, inp, el("button", { class: "btn small", onclick: save }, "Zeit speichern"),
+    el("span", { class: "usState" + (usSeen ? " on" : "") }, usSeen ? "● Auto-Zeit aktiv" : "Auto-Zeit: Userscript nicht aktiv"));
+  row.append(line, form);
+  if (focused) { inp.focus(); }
+}
+window.addEventListener("message", (ev) => {
+  const d = ev.data;
+  if (!d || d.src !== "onepace-us") return;
+  if (!/^https:\/\/(youtube\.googleapis\.com|www\.youtube\.com|drive\.google\.com)$/.test(ev.origin)) return;
+  const k = playerKey; if (!k || !byKey[k]) return;
+  if (d.type === "ready") {
+    usSource = ev.source;
+    if (!usSeen) { usSeen = true; renderPosRow(); }
+    try { ev.source.postMessage({ src: "onepace-tr", type: "seek", t: resumeT(k) }, ev.origin); } catch (e) {}
+  } else if (d.type === "pos" && typeof d.t === "number" && isFinite(d.t)) {
+    usSource = ev.source; usSeen = true;
+    if (state.done[k]) return;
+    setPos(k, d.t, d.d, !d.paused);
+    renderPosRow();
+    if (d.paused) { /* list tag aktualisieren */ render(); }
+  } else if (d.type === "ended") {
+    const e = byKey[k];
+    if (!state.done[k]) toast(`Folge ${num(e.n)} ist zu Ende.`, false, { label: "Gesehen ✓", fn: () => markDone(k) });
+  }
+});
 
 // ---------- settings ----------
 function openSettings() {
@@ -551,13 +657,16 @@ function disconnect() { cfg = null; try { localStorage.removeItem(LS_CFG); } cat
   $("cfgDisconnect").onclick = disconnect;
   $("overlay").addEventListener("click", (ev) => { if (ev.target.id === "overlay") closeSettings(); });
 
+  if (cfg) holdPlayer = true;
   render();
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") pull(); });
   window.addEventListener("focus", pull);
   setInterval(() => { if (document.visibilityState === "visible") pull(); }, POLL_MS);
   if (!cfg) { setSync("off"); return; }
   setSync("syncing");
-  pull();
+  const release = () => { if (!holdPlayer) return; holdPlayer = false; $("player").textContent = ""; playerSrc = null; render(); };
+  setTimeout(release, 3500);
+  pull().finally(release);
 })();
 
 </script>
