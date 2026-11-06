@@ -161,6 +161,10 @@
   .posTag{color:var(--accent2)}
   .playerHold{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:14px}
   @media (max-width:600px){ .usState{margin-left:0;width:100%} }
+
+  .navBtns{display:flex;gap:8px}
+  .btn:disabled{opacity:.35;cursor:default}
+  @media (max-width:600px){ .navBtns{width:100%} .navBtns .btn{flex:1;justify-content:center} }
 </style>
 
 </head>
@@ -453,6 +457,11 @@ function renderHero() {
     acts.push(el("button", { class: "btn ghost", onclick: () => play(e.k, onExt ? e.id : e.x) }, onExt ? "Normale Version" : "Extended-Version"));
   }
   if (e.filler && !state.done[e.k]) acts.push(el("button", { class: "btn ghost", onclick: () => { markDone(e.k, "s"); toast("Filler übersprungen", true); } }, "Überspringen"));
+  const ix = byKey[e.k].i, prev = EPISODES[ix - 1], next = EPISODES[ix + 1];
+  acts.push(el("div", { class: "navBtns" },
+    el("button", { class: "btn ghost", disabled: prev ? null : "", title: prev ? `${ARCS[prev.arc]} ${num(prev.n)} – ${prev.t}` : "", onclick: () => prev && play(prev.k) }, "‹ Vorherige"),
+    el("button", { class: "btn ghost", disabled: next ? null : "", title: next ? `${ARCS[next.arc]} ${num(next.n)} – ${next.t}` : "", onclick: () => next && play(next.k) }, "Nächste ›"),
+  ));
   acts.push(el("a", { class: "driveLink", href: viewUrl(playerSrc || e.id), target: "_blank", rel: "noopener" }, "In Drive öffnen ↗"));
 
   h.append(
