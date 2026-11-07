@@ -176,6 +176,19 @@
   .heroTitle{text-shadow:0 0 12px rgba(167,139,250,.45),0 0 28px rgba(139,92,246,.25)}
   .bigNum{text-shadow:0 0 14px rgba(167,139,250,.5),0 0 34px rgba(139,92,246,.3)}
   .eyebrow{text-shadow:0 0 8px rgba(139,92,246,.6)}
+
+  /* Schalter */
+  .toggles{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:10px 22px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+  .toggle{display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:14px;line-height:1.3;user-select:none}
+  .toggle small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+  .toggle input{position:absolute;opacity:0;width:0;height:0}
+  .toggle .sw{flex:0 0 auto;width:36px;height:20px;border-radius:99px;background:#3a4654;position:relative;transition:.2s;margin-top:1px}
+  .toggle .sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#c9d3dd;transition:.2s}
+  .toggle input:checked + .sw{background:var(--accent)}
+  .toggle input:checked + .sw::after{left:18px;background:#fff}
+  .toggle input:focus-visible + .sw{outline:2px solid var(--accent2);outline-offset:2px}
+  .toggle.off{opacity:.45;cursor:default}
+  .toggleNote{width:100%;font-size:12px;color:var(--muted)}
 </style>
 
 </head>
@@ -241,6 +254,7 @@ const EPISODES = [{"k":"oni-01","arc":"oni","n":"01","ch":"977-978","ep":"982-98
 const ARCS = { oni: "Onigashima", eow: "End of Wano" };
 const LS_STATE = "onepace-wano-progress-v1";
 const LS_CFG = "onepace-sync-config-v1";
+const LS_PREFS = "onepace-prefs-v1";   // pro Gerät: { autoNext, autoPlay }
 const DOC_VERSION = 1;
 const POLL_MS = 60000;
 
@@ -254,6 +268,8 @@ let syncState = "off";     // off | syncing | ok | error
 let selectedKey = null;    // Folge im Player (nur lokal, nicht synchronisiert)
 let playerSrc = null;      // aktuell geladene Drive-ID
 let openMenu = null;
+let prefs = { autoNext: true, autoPlay: false };
+let autoplayKey = null;    // Folge, die nach dem Laden automatisch starten soll
 
 const $ = (id) => document.getElementById(id);
 const byKey = Object.fromEntries(EPISODES.map((e, i) => [e.k, { ...e, i }]));
@@ -484,8 +500,9 @@ function renderHero() {
     el("div", { class: "meta" }, chips),
     el("div", { class: "actions" }, acts),
     el("div", { id: "posRow", class: "posRow" }),
+    el("div", { id: "toggles", class: "toggles" }),
   );
-  renderPosRow();
+  renderPosRow(); renderToggles();
   if (state.lastOpened) {
     const lo = byKey[state.lastOpened.k];
     h.append(el("div", { class: "lastOpened" }, `Zuletzt geöffnet: ${ARCS[lo.arc]} ${num(lo.n)} – „${lo.t}“ · ${fmtRel(state.lastOpened.at)}`));
@@ -605,10 +622,14 @@ window.addEventListener("message", (ev) => {
   if (!d || d.src !== "onepace-us") return;
   if (!/^https:\/\/(youtube\.googleapis\.com|www\.youtube\.com|drive\.google\.com)$/.test(ev.origin)) return;
   const k = playerKey; if (!k || !byKey[k]) return;
-  if (d.type === "ready") {
+  if (d.type === "ready" || d.type === "hello") {
     usSource = ev.source;
-    if (!usSeen) { usSeen = true; renderPosRow(); }
+    if (!usSeen) { usSeen = true; renderPosRow(); renderToggles(); }
     try { ev.source.postMessage({ src: "onepace-tr", type: "seek", t: resumeT(k) }, ev.origin); } catch (e) {}
+    if (autoplayKey && autoplayKey === k) {
+      autoplayKey = null;
+      try { ev.source.postMessage({ src: "onepace-tr", type: "play" }, ev.origin); } catch (e) {}
+    }
   } else if (d.type === "pos" && typeof d.t === "number" && isFinite(d.t)) {
     usSource = ev.source; usSeen = true;
     if (state.done[k]) return;
@@ -616,10 +637,45 @@ window.addEventListener("message", (ev) => {
     renderPosRow();
     if (d.paused) { /* list tag aktualisieren */ render(); }
   } else if (d.type === "ended") {
-    const e = byKey[k];
-    if (!state.done[k]) toast(`Folge ${num(e.n)} ist zu Ende.`, false, { label: "Gesehen ✓", fn: () => markDone(k) });
+    onEnded(k);
   }
 });
+
+// ---------- Ende einer Folge ----------
+let lastEnded = { k: null, at: 0 };
+function onEnded(k) {
+  const e = byKey[k]; if (!e) return;
+  if (lastEnded.k === k && Date.now() - lastEnded.at < 5000) return; // doppelte Meldung ignorieren
+  lastEnded = { k, at: Date.now() };
+  const next = EPISODES[e.i + 1];
+  if (!prefs.autoNext) {
+    if (!state.done[k]) toast(`Folge ${num(e.n)} ist zu Ende.`, false, { label: "Gesehen ✓", fn: () => markDone(k) });
+    return;
+  }
+  remember();
+  if (!state.done[k]) state.done[k] = "w";
+  delete state.pos[k];
+  const nu = nextUp();
+  selectedKey = next && !(nu && nu.k === next.k) ? next.k : null;   // der Reihe nach weiter
+  if (next && prefs.autoPlay) autoplayKey = next.k;
+  persist(); render();
+  toast(next ? `Folge ${num(e.n)} gesehen ✓ – weiter mit ${num(next.n)}` : `Folge ${num(e.n)} gesehen ✓`, true);
+}
+function renderToggles() {
+  const box = $("toggles"); if (!box) return;
+  box.textContent = "";
+  const mk = (key, label, hint, disabled) => {
+    const inp = el("input", { type: "checkbox", id: "pref-" + key });
+    inp.checked = !!prefs[key]; inp.disabled = !!disabled;
+    inp.addEventListener("change", () => { prefs[key] = inp.checked; lsSet(LS_PREFS, prefs); renderToggles(); });
+    return el("label", { class: "toggle" + (disabled ? " off" : ""), for: "pref-" + key }, inp, el("span", { class: "sw" }), el("span", {}, label, hint ? el("small", {}, hint) : null));
+  };
+  box.append(
+    mk("autoNext", "Am Ende automatisch weiter", "als gesehen markieren + nächste Folge laden"),
+    mk("autoPlay", "Nächste Folge automatisch starten", "experimentell – kann vom Browser blockiert werden", !prefs.autoNext),
+  );
+  if (!usSeen) box.append(el("div", { class: "toggleNote" }, "Funktioniert nur mit installiertem Auto-Zeit-Userscript."));
+}
 
 // ---------- settings ----------
 function openSettings() {
@@ -667,6 +723,7 @@ function disconnect() { cfg = null; try { localStorage.removeItem(LS_CFG); } cat
     history.replaceState(null, "", location.pathname + location.search);
   }
   cfg = lsGet(LS_CFG);
+  const pr = lsGet(LS_PREFS); if (pr) prefs = { ...prefs, ...pr };
   const local = lsGet(LS_STATE);
   if (local) state = normalize(local);
 

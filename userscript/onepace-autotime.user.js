@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         One Pace Tracker – Auto-Zeit
 // @namespace    https://mowdow.github.io/onepace-tracker/
-// @version      1.0.0
+// @version      1.1.0
 // @description  Meldet die Abspielposition des eingebetteten Drive-Players an den One Pace Tracker und springt beim Laden an die gespeicherte Stelle.
 // @match        https://youtube.googleapis.com/embed/*
 // @match        https://www.youtube.com/embed/*
@@ -28,10 +28,32 @@
   window.addEventListener("message", (e) => {
     if (e.origin !== TRACKER) return;
     const d = e.data;
-    if (!d || d.src !== "onepace-tr" || d.type !== "seek") return;
-    armed = true;
-    if (d.t > 2) { pendingSeek = d.t; trySeek(false); }
+    if (!d || d.src !== "onepace-tr") return;
+    if (d.type === "seek") {
+      armed = true;
+      if (d.t > 2) { pendingSeek = d.t; trySeek(false); }
+    } else if (d.type === "play") {
+      tryPlay();
+    }
   });
+
+  // Nächste Folge automatisch starten: mehrere Wege, weil der Player je nach Version anders reagiert.
+  // Kann vom Browser blockiert werden (Autoplay-Regeln) – dann passiert einfach nichts.
+  let playTimer = null;
+  function tryPlay() {
+    clearInterval(playTimer);
+    let tries = 0;
+    playTimer = setInterval(() => {
+      tries++;
+      if ((video && !video.paused) || tries > 30) { clearInterval(playTimer); return; }
+      try {
+        const mp = document.getElementById("movie_player");
+        if (mp && typeof mp.playVideo === "function") mp.playVideo();
+        else if (video) video.play().catch(() => {});
+        else { const b = document.querySelector(".ytp-large-play-button, .ytp-play-button"); if (b) b.click(); }
+      } catch (e) {}
+    }, 500);
+  }
 
   // final=true beim ersten "playing": dann bleibt die Stelle sicher, auch wenn der Player beim Start zurücksetzt
   function trySeek(final) {
@@ -63,6 +85,8 @@
     send({ type: "ready" });
     setTimeout(() => { armed = true; }, 5000);
   }
+
+  send({ type: "hello" });   // sofort melden, auch bevor das Video-Element existiert
 
   const find = () => {
     const v = document.querySelector("video");
