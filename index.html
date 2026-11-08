@@ -586,7 +586,7 @@ function setPos(k, t, d, throttle) {
 }
 function resumeHere(k) {
   const t = resumeT(k);
-  if (usSource) { try { usSource.postMessage({ src: "onepace-tr", type: "seek", t }, "*"); } catch (e) {} }
+  if (usSource) { try { usSource.postMessage({ src: "onepace-tr", type: "resume", t }, "*"); } catch (e) {} }
   else render(undefined, t); // Player mit ?t= neu laden
 }
 function renderPosRow() {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         One Pace Tracker – Auto-Zeit
 // @namespace    https://mowdow.github.io/onepace-tracker/
-// @version      1.1.0
+// @version      1.2.0
 // @description  Meldet die Abspielposition des eingebetteten Drive-Players an den One Pace Tracker und springt beim Laden an die gespeicherte Stelle.
 // @match        https://youtube.googleapis.com/embed/*
 // @match        https://www.youtube.com/embed/*
@@ -34,8 +34,40 @@
       if (d.t > 2) { pendingSeek = d.t; trySeek(false); }
     } else if (d.type === "play") {
       tryPlay();
+    } else if (d.type === "resume" && d.t >= 0) {
+      armed = true;
+      resumeAt(d.t);
     }
   });
+
+  // YouTube-Player im Drive-Player: hat eigene Steuerung (seekTo/playVideo), die auch vor dem ersten Play greift
+  const ytp = () => { const mp = document.getElementById("movie_player"); return mp && typeof mp.seekTo === "function" ? mp : null; };
+  function seekNow(t) {
+    const mp = ytp();
+    try { if (mp) mp.seekTo(t, true); else if (video) video.currentTime = t; } catch (e) {}
+  }
+
+  // "Ab X weiterschauen": an die Stelle springen und abspielen
+  let resumeTimer = null;
+  function resumeAt(t) {
+    pendingSeek = null;
+    clearInterval(resumeTimer);
+    let tries = 0;
+    const step = () => {
+      tries++;
+      const cur = video ? video.currentTime : 0;
+      const atSpot = Math.abs(cur - t) < 4;
+      if ((atSpot && video && !video.paused) || tries > 16) { clearInterval(resumeTimer); return; }
+      const mp = ytp();
+      try {
+        if (!atSpot) seekNow(t);
+        if (mp && typeof mp.playVideo === "function") mp.playVideo();
+        else if (video) video.play().catch(() => {});
+      } catch (e) {}
+    };
+    step();
+    resumeTimer = setInterval(step, 500);
+  }
 
   // Nächste Folge automatisch starten: mehrere Wege, weil der Player je nach Version anders reagiert.
   // Kann vom Browser blockiert werden (Autoplay-Regeln) – dann passiert einfach nichts.
@@ -58,9 +90,7 @@
   // final=true beim ersten "playing": dann bleibt die Stelle sicher, auch wenn der Player beim Start zurücksetzt
   function trySeek(final) {
     if (!video || pendingSeek == null || video.readyState < 1) return;
-    if (Math.abs(video.currentTime - pendingSeek) > 3) {
-      try { video.currentTime = pendingSeek; } catch (e) {}
-    }
+    if (Math.abs(video.currentTime - pendingSeek) > 3) seekNow(pendingSeek);
     if (final) pendingSeek = null;
   }
 
