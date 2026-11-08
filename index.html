@@ -189,6 +189,8 @@
   .toggle input:focus-visible + .sw{outline:2px solid var(--accent2);outline-offset:2px}
   .toggle.off{opacity:.45;cursor:default}
   .toggleNote{width:100%;font-size:12px;color:var(--muted)}
+
+  .usState.old{color:#ffcf70}
 </style>
 
 </head>
@@ -578,6 +580,10 @@ let holdPlayer = false;    // Player erst laden, wenn der aktuelle Stand vom Ser
 let playerKey = null;      // Folge, die gerade im iframe geladen ist
 let usSource = null;       // Fenster des Userscripts im Player (für "seek"-Befehle)
 let usSeen = false;        // Userscript hat sich in diesem Besuch gemeldet
+let usVer = "", usApi = null;
+const US_MIN = "1.3.0";
+const verLt = (a, b) => { const x = String(a || "0").split(".").map(Number), y = b.split(".").map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== y[i]) return (x[i] || 0) < y[i]; } return false; };
+let resumeWait = null;
 function resumeT(k) { const p = state.pos[k]; if (!p || !(p.t > 5)) return 0; if (p.d && p.t > p.d - 15) return 0; return p.t; }
 function setPos(k, t, d, throttle) {
   const prev = state.pos[k] || {};
@@ -586,8 +592,11 @@ function setPos(k, t, d, throttle) {
 }
 function resumeHere(k) {
   const t = resumeT(k);
-  if (usSource) { try { usSource.postMessage({ src: "onepace-tr", type: "resume", t }, "*"); } catch (e) {} }
-  else render(undefined, t); // Player mit ?t= neu laden
+  const fallback = (why) => { toast(why + " – lade den Player an der Stelle neu."); render(undefined, t); };
+  if (!usSource || verLt(usVer, US_MIN)) { fallback(usSource ? "Userscript veraltet" : "Userscript nicht aktiv"); return; }
+  try { usSource.postMessage({ src: "onepace-tr", type: "resume", t }, "*"); } catch (e) {}
+  clearTimeout(resumeWait);
+  resumeWait = setTimeout(() => fallback("Player hat nicht reagiert"), 2500);
 }
 function renderPosRow() {
   const row = $("posRow"); if (!row) return;
@@ -613,7 +622,10 @@ function renderPosRow() {
   };
   inp.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); save(); } });
   const form = el("div", { class: "posForm" }, inp, el("button", { class: "btn small", onclick: save }, "Zeit speichern"),
-    el("span", { class: "usState" + (usSeen ? " on" : "") }, usSeen ? "● Auto-Zeit aktiv" : "Auto-Zeit: Userscript nicht aktiv"));
+    el("span", { class: "usState" + (usSeen ? (verLt(usVer, US_MIN) ? " old" : " on") : "") },
+      !usSeen ? "Auto-Zeit: Userscript nicht aktiv"
+      : verLt(usVer, US_MIN) ? `● Userscript ${usVer ? "v" + usVer : "alt"} – bitte auf v${US_MIN} aktualisieren`
+      : `● Auto-Zeit aktiv · v${usVer}`));
   row.append(line, form);
   if (focused) { inp.focus(); }
 }
@@ -621,6 +633,8 @@ window.addEventListener("message", (ev) => {
   const d = ev.data;
   if (!d || d.src !== "onepace-us") return;
   if (!/^https:\/\/(youtube\.googleapis\.com|www\.youtube\.com|drive\.google\.com)$/.test(ev.origin)) return;
+  if (d.ver && d.ver !== usVer) { usVer = d.ver; renderPosRow(); }
+  if (typeof d.api === "boolean") usApi = d.api;
   const k = playerKey; if (!k || !byKey[k]) return;
   if (d.type === "ready" || d.type === "hello") {
     usSource = ev.source;
@@ -638,6 +652,11 @@ window.addEventListener("message", (ev) => {
     if (d.paused) { /* list tag aktualisieren */ render(); }
   } else if (d.type === "ended") {
     onEnded(k);
+  } else if (d.type === "resume-ack") {
+    clearTimeout(resumeWait);
+  } else if (d.type === "resumed") {
+    if (!d.ok) toast(`Sprung hat nicht geklappt (Player bei ${fmtT(d.cur)}, Ziel ${fmtT(d.t)})` + (usApi ? "" : " · Player-Steuerung nicht erreichbar"));
+    else if (!d.playing) toast(`Bei ${fmtT(d.t)} – Browser hat das Abspielen blockiert, bitte Play drücken.`);
   }
 });
 

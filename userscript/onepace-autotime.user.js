@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         One Pace Tracker – Auto-Zeit
 // @namespace    https://mowdow.github.io/onepace-tracker/
-// @version      1.2.0
+// @version      1.3.0
 // @description  Meldet die Abspielposition des eingebetteten Drive-Players an den One Pace Tracker und springt beim Laden an die gespeicherte Stelle.
 // @match        https://youtube.googleapis.com/embed/*
 // @match        https://www.youtube.com/embed/*
@@ -14,6 +14,7 @@
 (function () {
   "use strict";
   const TRACKER = "https://mowdow.github.io";   // Nachrichten gehen nur an diese Seite
+  const VERSION = "1.3.0";
   if (window.top === window) return;              // nur eingebettet (im Tracker) aktiv
 
   let video = null;
@@ -22,7 +23,7 @@
   let lastSent = 0;
 
   const send = (msg) => {
-    try { window.top.postMessage(Object.assign({ src: "onepace-us", v: 1 }, msg), TRACKER); } catch (e) {}
+    try { window.top.postMessage(Object.assign({ src: "onepace-us", v: 1, ver: VERSION, api: !!ytp() }, msg), TRACKER); } catch (e) {}
   };
 
   window.addEventListener("message", (e) => {
@@ -41,7 +42,16 @@
   });
 
   // YouTube-Player im Drive-Player: hat eigene Steuerung (seekTo/playVideo), die auch vor dem ersten Play greift
-  const ytp = () => { const mp = document.getElementById("movie_player"); return mp && typeof mp.seekTo === "function" ? mp : null; };
+  // Firefox isoliert Userscripts: Funktionen, die die Seite an Elemente hängt, sind nur über wrappedJSObject sichtbar
+  const ytp = () => {
+    const el = document.getElementById("movie_player");
+    if (!el) return null;
+    const cands = [];
+    try { if (el.wrappedJSObject) cands.push(el.wrappedJSObject); } catch (e) {}
+    cands.push(el);
+    for (const c of cands) { try { if (typeof c.seekTo === "function" && typeof c.playVideo === "function") return c; } catch (e) {} }
+    return null;
+  };
   function seekNow(t) {
     const mp = ytp();
     try { if (mp) mp.seekTo(t, true); else if (video) video.currentTime = t; } catch (e) {}
@@ -51,13 +61,18 @@
   let resumeTimer = null;
   function resumeAt(t) {
     pendingSeek = null;
+    send({ type: "resume-ack", t });
     clearInterval(resumeTimer);
     let tries = 0;
     const step = () => {
       tries++;
       const cur = video ? video.currentTime : 0;
       const atSpot = Math.abs(cur - t) < 4;
-      if ((atSpot && video && !video.paused) || tries > 16) { clearInterval(resumeTimer); return; }
+      if ((atSpot && video && !video.paused) || tries > 16) {
+        clearInterval(resumeTimer);
+        send({ type: "resumed", ok: atSpot, playing: !!(video && !video.paused), cur: video ? video.currentTime : -1, t });
+        return;
+      }
       const mp = ytp();
       try {
         if (!atSpot) seekNow(t);
