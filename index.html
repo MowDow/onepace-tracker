@@ -270,7 +270,7 @@ let syncState = "off";     // off | syncing | ok | error
 let selectedKey = null;    // Folge im Player (nur lokal, nicht synchronisiert)
 let playerSrc = null;      // aktuell geladene Drive-ID
 let openMenu = null;
-let prefs = { autoNext: true, autoPlay: false };
+let prefs = { autoNext: true, autoPlay: false, autoFs: true };
 let autoplayKey = null;    // Folge, die nach dem Laden automatisch starten soll
 
 const $ = (id) => document.getElementById(id);
@@ -639,7 +639,7 @@ window.addEventListener("message", (ev) => {
   if (d.type === "ready" || d.type === "hello") {
     usSource = ev.source;
     if (!usSeen) { usSeen = true; renderPosRow(); renderToggles(); }
-    try { ev.source.postMessage({ src: "onepace-tr", type: "seek", t: resumeT(k) }, ev.origin); } catch (e) {}
+    try { ev.source.postMessage({ src: "onepace-tr", type: "seek", t: resumeT(k), fs: !!prefs.autoFs }, ev.origin); } catch (e) {}
     if (autoplayKey && autoplayKey === k) {
       autoplayKey = null;
       try { ev.source.postMessage({ src: "onepace-tr", type: "play" }, ev.origin); } catch (e) {}
@@ -686,13 +686,18 @@ function renderToggles() {
   const mk = (key, label, hint, disabled) => {
     const inp = el("input", { type: "checkbox", id: "pref-" + key });
     inp.checked = !!prefs[key]; inp.disabled = !!disabled;
-    inp.addEventListener("change", () => { prefs[key] = inp.checked; lsSet(LS_PREFS, prefs); renderToggles(); });
+    inp.addEventListener("change", () => {
+      prefs[key] = inp.checked; lsSet(LS_PREFS, prefs); renderToggles();
+      if (key === "autoFs" && usSource) { try { usSource.postMessage({ src: "onepace-tr", type: "prefs", fs: !!prefs.autoFs }, "*"); } catch (e) {} }
+    });
     return el("label", { class: "toggle" + (disabled ? " off" : ""), for: "pref-" + key }, inp, el("span", { class: "sw" }), el("span", {}, label, hint ? el("small", {}, hint) : null));
   };
   box.append(
     mk("autoNext", "Am Ende automatisch weiter", "als gesehen markieren + nächste Folge laden"),
     mk("autoPlay", "Nächste Folge automatisch starten", "experimentell – kann vom Browser blockiert werden", !prefs.autoNext),
+    mk("autoFs", "Beim ersten Play Vollbild", "Android: zusätzlich Querformat"),
   );
+  if (usSeen && verLt(usVer, "1.4.0")) box.append(el("div", { class: "toggleNote" }, "Vollbild braucht Userscript v1.4.0 – bitte aktualisieren."));
   if (!usSeen) box.append(el("div", { class: "toggleNote" }, "Funktioniert nur mit installiertem Auto-Zeit-Userscript."));
 }
 
