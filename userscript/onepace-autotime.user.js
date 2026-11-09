@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         One Pace Tracker – Auto-Zeit
 // @namespace    https://mowdow.github.io/onepace-tracker/
-// @version      1.4.0
+// @version      1.5.0
 // @description  Meldet die Abspielposition des eingebetteten Drive-Players an den One Pace Tracker und springt beim Laden an die gespeicherte Stelle.
 // @match        https://youtube.googleapis.com/embed/*
 // @match        https://www.youtube.com/embed/*
@@ -14,7 +14,7 @@
 (function () {
   "use strict";
   const TRACKER = "https://mowdow.github.io";   // Nachrichten gehen nur an diese Seite
-  const VERSION = "1.4.0";
+  const VERSION = "1.5.0";
   if (window.top === window) return;              // nur eingebettet (im Tracker) aktiv
 
   let video = null;
@@ -85,36 +85,24 @@
     resumeTimer = setInterval(step, 500);
   }
 
-  // ---------- Vollbild beim ersten Play (Handy: Querformat) ----------
-  // Browser erlauben Vollbild nur direkt nach einer Nutzeraktion → wir hängen uns an den Play-Klick selbst.
-  let fsPref = false, hasPlayed = false, fsTried = false;
-  const fsActive = () => document.fullscreenElement || document.webkitFullscreenElement;
-  function goFullscreen() {
-    if (!fsPref || fsTried || fsActive()) return;
-    fsTried = true;
-    const target = document.getElementById("movie_player") || video;
-    if (!target) return;
-    try {
-      const req = target.requestFullscreen || target.webkitRequestFullscreen;
-      const r = req && req.call(target);
-      if (r && r.catch) r.catch(() => { fsTried = false; });
-    } catch (e) { fsTried = false; }
+  // ---------- Vollbild beim ersten Play ----------
+  // Drive bettet diesen Player ohne Vollbild-Erlaubnis ein → wir melden den Play-Klick an den Tracker,
+  // der dann den ganzen Player-Bereich in Vollbild schaltet (dort klappt auch das Querformat auf Android).
+  let fsPref = false, hasPlayed = false, fsSent = false;
+  function requestFs() {
+    if (!fsPref || fsSent) return;
+    fsSent = true;
+    send({ type: "fs-request" });
   }
   const onUserStart = (ev) => {
-    if (!fsPref || hasPlayed || fsActive()) return;
+    if (!fsPref || hasPlayed || fsSent) return;
     if (ev.type === "keydown" && ![" ", "k", "Enter"].includes(ev.key)) return;
     if (video && !video.paused) return;          // Klick zum Pausieren → nichts tun
-    goFullscreen();
+    requestFs();
   };
-  document.addEventListener("click", onUserStart, true);
-  document.addEventListener("keydown", onUserStart, true);
-  const onFsChange = () => {
-    const so = screen.orientation;
-    if (fsActive()) { if (so && so.lock) so.lock("landscape").catch(() => {}); }
-    else { try { if (so && so.unlock) so.unlock(); } catch (e) {} }
-  };
-  document.addEventListener("fullscreenchange", onFsChange);
-  document.addEventListener("webkitfullscreenchange", onFsChange);
+  window.addEventListener("pointerup", onUserStart, true);
+  window.addEventListener("click", onUserStart, true);
+  window.addEventListener("keydown", onUserStart, true);
 
   // Nächste Folge automatisch starten: mehrere Wege, weil der Player je nach Version anders reagiert.
   // Kann vom Browser blockiert werden (Autoplay-Regeln) – dann passiert einfach nichts.
@@ -156,7 +144,7 @@
     v.addEventListener("play", () => {
       // Falls der Start nicht über unseren Klick-Haken lief (z. B. Tippen auf dem Handy): nur mit frischer Nutzeraktion
       const ua = navigator.userActivation;
-      if (!hasPlayed && ua && ua.isActive) goFullscreen();
+      if (!hasPlayed && ua && ua.isActive) requestFs();
       hasPlayed = true;
     });
     v.addEventListener("pause", () => { if (!v.ended) report(true); });

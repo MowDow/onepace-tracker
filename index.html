@@ -191,6 +191,10 @@
   .toggleNote{width:100%;font-size:12px;color:var(--muted)}
 
   .usState.old{color:#ffcf70}
+
+  .player:fullscreen{width:100vw;height:100vh;aspect-ratio:auto;border:0;border-radius:0;margin:0;background:#000}
+  .player:-webkit-full-screen{width:100vw;height:100vh;aspect-ratio:auto;border:0;border-radius:0;margin:0;background:#000}
+  @media (max-width:600px){ .navBtns{flex-wrap:wrap} .navBtns .btn:last-child{flex-basis:100%} }
 </style>
 
 </head>
@@ -490,6 +494,7 @@ function renderHero() {
   acts.push(el("div", { class: "navBtns" },
     el("button", { class: "btn ghost", disabled: prev ? null : "", title: prev ? `${ARCS[prev.arc]} ${num(prev.n)} – ${prev.t}` : "", onclick: () => prev && play(prev.k) }, "‹ Vorherige"),
     el("button", { class: "btn ghost", disabled: next ? null : "", title: next ? `${ARCS[next.arc]} ${num(next.n)} – ${next.t}` : "", onclick: () => next && play(next.k) }, "Nächste ›"),
+    el("button", { class: "btn ghost", title: "Player im Vollbild", onclick: () => enterFs(false) }, "⛶ Vollbild"),
   ));
   acts.push(el("a", { class: "driveLink", href: viewUrl(playerSrc || e.id), target: "_blank", rel: "noopener" }, "In Drive öffnen ↗"));
 
@@ -652,6 +657,8 @@ window.addEventListener("message", (ev) => {
     if (d.paused) { /* list tag aktualisieren */ render(); }
   } else if (d.type === "ended") {
     onEnded(k);
+  } else if (d.type === "fs-request") {
+    if (prefs.autoFs && fsDoneKey !== k) { fsDoneKey = k; enterFs(true); }
   } else if (d.type === "resume-ack") {
     clearTimeout(resumeWait);
   } else if (d.type === "resumed") {
@@ -659,6 +666,29 @@ window.addEventListener("message", (ev) => {
     else if (!d.playing) toast(`Bei ${fmtT(d.t)} – Browser hat das Abspielen blockiert, bitte Play drücken.`);
   }
 });
+
+// ---------- Vollbild ----------
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+let fsDoneKey = null;      // pro geladener Folge nur einmal automatisch
+async function enterFs(auto) {
+  if (fsEl()) return true;
+  const box = $("player");
+  const req = box.requestFullscreen || box.webkitRequestFullscreen;
+  if (!req) { if (!auto) toast("Vollbild wird von diesem Browser nicht unterstützt."); return false; }
+  try {
+    await req.call(box);
+    try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock("landscape"); } catch (e) {}
+    return true;
+  } catch (e) {
+    if (auto) toast("Vollbild wurde vom Browser blockiert – tippe auf ⛶ Vollbild.");
+    return false;
+  }
+}
+function onFsChange() {
+  if (!fsEl()) { try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch (e) {} }
+}
+document.addEventListener("fullscreenchange", onFsChange);
+document.addEventListener("webkitfullscreenchange", onFsChange);
 
 // ---------- Ende einer Folge ----------
 let lastEnded = { k: null, at: 0 };
@@ -697,7 +727,7 @@ function renderToggles() {
     mk("autoPlay", "Nächste Folge automatisch starten", "experimentell – kann vom Browser blockiert werden", !prefs.autoNext),
     mk("autoFs", "Beim ersten Play Vollbild", "Android: zusätzlich Querformat"),
   );
-  if (usSeen && verLt(usVer, "1.4.0")) box.append(el("div", { class: "toggleNote" }, "Vollbild braucht Userscript v1.4.0 – bitte aktualisieren."));
+  if (usSeen && verLt(usVer, "1.5.0")) box.append(el("div", { class: "toggleNote" }, "Automatisches Vollbild braucht Userscript v1.5.0 – bitte aktualisieren."));
   if (!usSeen) box.append(el("div", { class: "toggleNote" }, "Funktioniert nur mit installiertem Auto-Zeit-Userscript."));
 }
 
