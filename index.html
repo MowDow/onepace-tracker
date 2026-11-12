@@ -527,6 +527,12 @@ function render(driveId, forceT) {
   $("progBar").style.width = (done.length / EPISODES.length * 100) + "%";
 
   const notice = $("notice"); notice.textContent = "";
+  if (interrupted && byKey[interrupted]) {
+    const ik = interrupted, t = resumeT(ik);
+    notice.append(el("div", { class: "notice info" }, `Die Wiedergabe wurde unterbrochen (Seite neu geladen). `,
+      el("button", { class: "btn small play", style: "margin-left:6px", onclick: () => { interrupted = null; resumeHere(ik); render(); } }, t ? `▶ Ab ${fmtT(t)} weiter` : "▶ Weiter"),
+      el("button", { class: "linkBtn", style: "margin-left:10px;color:inherit", onclick: () => { interrupted = null; render(); } }, "Ausblenden")));
+  }
   if (!cfg) notice.append(el("div", { class: "notice" }, "Sync ist noch nicht eingerichtet – der Fortschritt bleibt nur in diesem Browser. ", el("button", { class: "linkBtn", style: "color:inherit", onclick: openSettings }, "Jetzt einrichten")));
   else if (!done.length) notice.append(el("div", { class: "notice info" }, "Erster Start: Tippe bei der Folge, mit der du weitermachst, auf „⋯“ → „Ab hier weiterschauen“. Alles davor wird als gesehen markiert."));
 
@@ -651,6 +657,7 @@ window.addEventListener("message", (ev) => {
     }
   } else if (d.type === "pos" && typeof d.t === "number" && isFinite(d.t)) {
     usSource = ev.source; usSeen = true;
+    try { if (d.paused) localStorage.removeItem(SS_PLAY); else localStorage.setItem(SS_PLAY, JSON.stringify({ k, at: Date.now() })); } catch (e) {}
     if (state.done[k]) return;
     setPos(k, d.t, d.d, !d.paused);
     renderPosRow();
@@ -666,6 +673,16 @@ window.addEventListener("message", (ev) => {
     else if (!d.playing) toast(`Bei ${fmtT(d.t)} – Browser hat das Abspielen blockiert, bitte Play drücken.`);
   }
 });
+
+// ---------- Unterbrechung erkennen (z. B. Safari lädt die Seite neu) ----------
+const SS_PLAY = "onepace-playing-v1";
+function checkInterrupted() {
+  let p = null; try { p = JSON.parse(localStorage.getItem(SS_PLAY) || "null"); localStorage.removeItem(SS_PLAY); } catch (e) {}
+  if (!p || !byKey[p.k] || Date.now() - p.at > 120000 || state.done[p.k]) return;
+  selectedKey = p.k;
+  interrupted = p.k;
+}
+let interrupted = null;
 
 // ---------- Vollbild ----------
 const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
@@ -685,7 +702,9 @@ async function enterFs(auto) {
   }
 }
 function onFsChange() {
-  if (!fsEl()) { try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch (e) {} }
+  const on = !!fsEl();
+  if (!on) { try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch (e) {} }
+  if (usSource) { try { usSource.postMessage({ src: "onepace-tr", type: "fs", on }, "*"); } catch (e) {} }
 }
 document.addEventListener("fullscreenchange", onFsChange);
 document.addEventListener("webkitfullscreenchange", onFsChange);
@@ -778,6 +797,8 @@ function disconnect() { cfg = null; try { localStorage.removeItem(LS_CFG); } cat
   }
   cfg = lsGet(LS_CFG);
   const pr = lsGet(LS_PREFS); if (pr) prefs = { ...prefs, ...pr };
+  const local0 = lsGet(LS_STATE); if (local0) state = normalize(local0);
+  checkInterrupted();
   const local = lsGet(LS_STATE);
   if (local) state = normalize(local);
 

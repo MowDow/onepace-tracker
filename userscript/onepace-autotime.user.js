@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         One Pace Tracker – Auto-Zeit
 // @namespace    https://mowdow.github.io/onepace-tracker/
-// @version      1.5.0
+// @version      1.6.0
 // @description  Meldet die Abspielposition des eingebetteten Drive-Players an den One Pace Tracker und springt beim Laden an die gespeicherte Stelle.
 // @match        https://youtube.googleapis.com/embed/*
 // @match        https://www.youtube.com/embed/*
@@ -14,7 +14,7 @@
 (function () {
   "use strict";
   const TRACKER = "https://mowdow.github.io";   // Nachrichten gehen nur an diese Seite
-  const VERSION = "1.5.0";
+  const VERSION = "1.6.0";
   if (window.top === window) return;              // nur eingebettet (im Tracker) aktiv
 
   let video = null;
@@ -36,6 +36,8 @@
       if (d.t > 2) { pendingSeek = d.t; trySeek(false); }
     } else if (d.type === "play") {
       tryPlay();
+    } else if (d.type === "fs") {
+      setFsMode(!!d.on);
     } else if (d.type === "resume" && d.t >= 0) {
       armed = true;
       resumeAt(d.t);
@@ -104,6 +106,47 @@
   window.addEventListener("click", onUserStart, true);
   window.addEventListener("keydown", onUserStart, true);
 
+  // ---------- Leiste im Vollbild automatisch ausblenden ----------
+  // Auf Touch-Geräten bleibt die Player-Leiste im (Tracker-)Vollbild sonst stehen.
+  // Erster Tipp bei ausgeblendeter Leiste zeigt sie nur an (wie gewohnt), löst also kein Pause/Play aus.
+  const BAR_SEL = [".ytp-chrome-bottom", ".ytp-gradient-bottom", ".ytp-chrome-top", ".ytp-gradient-top"];
+  let fsMode = false, barHidden = false, hideTimer = null, swallowUntil = 0;
+  function setBar(hidden) {
+    barHidden = hidden;
+    for (const sel of BAR_SEL) {
+      document.querySelectorAll(sel).forEach((el) => {
+        if (hidden) { el.style.setProperty("opacity", "0", "important"); el.style.setProperty("pointer-events", "none", "important"); el.style.setProperty("transition", "opacity .3s", "important"); }
+        else { el.style.removeProperty("opacity"); el.style.removeProperty("pointer-events"); }
+      });
+    }
+    const mp = document.getElementById("movie_player");
+    if (mp) { if (hidden) mp.style.setProperty("cursor", "none", "important"); else mp.style.removeProperty("cursor"); }
+  }
+  function armHide() {
+    clearTimeout(hideTimer);
+    if (!fsMode) return;
+    hideTimer = setTimeout(() => { if (fsMode && video && !video.paused) setBar(true); }, 3000);
+  }
+  function setFsMode(on) {
+    fsMode = on;
+    if (!on) { clearTimeout(hideTimer); setBar(false); } else armHide();
+  }
+  const onActivity = (ev) => {
+    if (!fsMode) return;
+    const tap = ev.type === "touchstart" || ev.type === "pointerdown" || ev.type === "mousedown";
+    if (barHidden && tap) {
+      swallowUntil = Date.now() + 400;          // dieser Tipp blendet nur die Leiste ein
+      ev.preventDefault(); ev.stopImmediatePropagation();
+      setBar(false);
+    } else if (barHidden && ev.type !== "keydown") {
+      setBar(false);
+    }
+    armHide();
+  };
+  const swallow = (ev) => { if (Date.now() < swallowUntil) { ev.preventDefault(); ev.stopImmediatePropagation(); } };
+  ["touchstart", "pointerdown", "mousedown", "mousemove", "keydown"].forEach((t) => window.addEventListener(t, onActivity, { capture: true, passive: false }));
+  ["touchend", "pointerup", "mouseup", "click"].forEach((t) => window.addEventListener(t, swallow, { capture: true, passive: false }));
+
   // Nächste Folge automatisch starten: mehrere Wege, weil der Player je nach Version anders reagiert.
   // Kann vom Browser blockiert werden (Autoplay-Regeln) – dann passiert einfach nichts.
   let playTimer = null;
@@ -147,7 +190,8 @@
       if (!hasPlayed && ua && ua.isActive) requestFs();
       hasPlayed = true;
     });
-    v.addEventListener("pause", () => { if (!v.ended) report(true); });
+    v.addEventListener("pause", () => { if (!v.ended) report(true); clearTimeout(hideTimer); setBar(false); });
+    v.addEventListener("playing", armHide);
     v.addEventListener("seeked", () => { if (v.paused) report(true); });
     v.addEventListener("timeupdate", () => { if (!v.paused && Date.now() - lastSent > 10000) report(false); });
     v.addEventListener("ended", () => send({ type: "ended", d: v.duration }));
