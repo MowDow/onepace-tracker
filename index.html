@@ -694,7 +694,6 @@ async function enterFs(auto) {
   if (!req) { if (!auto) toast("Vollbild wird von diesem Browser nicht unterstützt."); return false; }
   try {
     await req.call(box);
-    try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock("landscape"); } catch (e) {}
     return true;
   } catch (e) {
     if (auto) toast("Vollbild wurde vom Browser blockiert – tippe auf ⛶ Vollbild.");
@@ -702,9 +701,14 @@ async function enterFs(auto) {
   }
 }
 function onFsChange() {
-  const on = !!fsEl();
-  if (!on) { try { screen.orientation && screen.orientation.unlock && screen.orientation.unlock(); } catch (e) {} }
-  if (usSource) { try { usSource.postMessage({ src: "onepace-tr", type: "fs", on }, "*"); } catch (e) {} }
+  const f = fsEl();
+  const so = screen.orientation;
+  // Querformat (Android) – egal ob Drive-Vollbild (dann ist der Player-iframe im Vollbild) oder unser Ersatz
+  if (f) { try { so && so.lock && so.lock("landscape").catch(() => {}); } catch (e) {} }
+  else { try { so && so.unlock && so.unlock(); } catch (e) {} }
+  // Eigenes Ausblenden der Leiste nur im Ersatz-Vollbild; im echten Drive-Vollbild macht das der Player selbst
+  const own = f === $("player");
+  if (usSource) { try { usSource.postMessage({ src: "onepace-tr", type: "fs", on: own }, "*"); } catch (e) {} }
 }
 document.addEventListener("fullscreenchange", onFsChange);
 document.addEventListener("webkitfullscreenchange", onFsChange);
@@ -746,7 +750,7 @@ function renderToggles() {
     mk("autoPlay", "Nächste Folge automatisch starten", "experimentell – kann vom Browser blockiert werden", !prefs.autoNext),
     mk("autoFs", "Beim ersten Play Vollbild", "Android: zusätzlich Querformat"),
   );
-  if (usSeen && verLt(usVer, "1.5.0")) box.append(el("div", { class: "toggleNote" }, "Automatisches Vollbild braucht Userscript v1.5.0 – bitte aktualisieren."));
+  if (usSeen && verLt(usVer, "1.7.0")) box.append(el("div", { class: "toggleNote" }, "Vollbild braucht Userscript v1.7.0 – bitte aktualisieren."));
   if (!usSeen) box.append(el("div", { class: "toggleNote" }, "Funktioniert nur mit installiertem Auto-Zeit-Userscript."));
 }
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         One Pace Tracker – Auto-Zeit
 // @namespace    https://mowdow.github.io/onepace-tracker/
-// @version      1.6.0
+// @version      1.7.0
 // @description  Meldet die Abspielposition des eingebetteten Drive-Players an den One Pace Tracker und springt beim Laden an die gespeicherte Stelle.
 // @match        https://youtube.googleapis.com/embed/*
 // @match        https://www.youtube.com/embed/*
@@ -14,7 +14,7 @@
 (function () {
   "use strict";
   const TRACKER = "https://mowdow.github.io";   // Nachrichten gehen nur an diese Seite
-  const VERSION = "1.6.0";
+  const VERSION = "1.7.0";
   if (window.top === window) return;              // nur eingebettet (im Tracker) aktiv
 
   let video = null;
@@ -91,10 +91,21 @@
   // Drive bettet diesen Player ohne Vollbild-Erlaubnis ein → wir melden den Play-Klick an den Tracker,
   // der dann den ganzen Player-Bereich in Vollbild schaltet (dort klappt auch das Querformat auf Android).
   let fsPref = false, hasPlayed = false, fsSent = false;
+  // 1. Weg: den Vollbild-Button des Players selbst drücken → Drive macht ein echtes Vollbild
+  //    (Player-Icon stimmt, Leiste blendet sich wie gewohnt aus). Muss im selben Tipp/Klick passieren.
+  // 2. Weg (Ersatz): der Tracker schaltet den Player-Bereich in Vollbild.
   function requestFs() {
     if (!fsPref || fsSent) return;
     fsSent = true;
-    send({ type: "fs-request" });
+    const mp = document.getElementById("movie_player");
+    const already = mp && mp.classList.contains("ytp-fullscreen");
+    const btn = document.querySelector(".ytp-fullscreen-button");
+    if (!already && btn) {
+      try { btn.click(); } catch (e) {}
+      setTimeout(() => send({ type: "fs-request" }), 900);   // Tracker prüft, ob schon Vollbild ist
+    } else if (!already) {
+      send({ type: "fs-request" });
+    }
   }
   const onUserStart = (ev) => {
     if (!fsPref || hasPlayed || fsSent) return;
